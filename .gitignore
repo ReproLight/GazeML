@@ -7,6 +7,9 @@ outputs/
 # 3rd party files
 src/3rdparty
 
+# Jupyter
+src/.ipynb_checkpoints
+
 # Temporary files
 *.pyc
 __pycache__/
