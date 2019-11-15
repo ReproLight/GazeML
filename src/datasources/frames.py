@@ -106,7 +106,7 @@ class FramesSource(BaseDataSource):
                 self.detect_landmarks(frame)
                 self.calculate_smoothed_landmarks(frame)
                 self.segment_eyes(frame)
-                self.update_face_boxes(frame)
+                #self.update_face_boxes(frame)
                 frame['time']['after_preprocessing'] = time.time()
 
                 for i, eye_dict in enumerate(frame['eyes']):
@@ -137,7 +137,7 @@ class FramesSource(BaseDataSource):
         previous_index = self._indices[self._indices.index(frame_index) - 1]
         previous_frame = self._frames[previous_index]
         if ('last_face_detect_index' not in previous_frame or
-                frame['frame_index'] - previous_frame['last_face_detect_index'] > 59):
+                frame['frame_index'] - previous_frame['last_face_detect_index'] > 0):
             detector = get_face_detector()
             if detector.__class__.__name__ == 'CascadeClassifier':
                 detections = detector.detectMultiScale(frame['grey'])
@@ -165,6 +165,31 @@ class FramesSource(BaseDataSource):
         else:
             frame['faces'] = previous_frame['faces']
             frame['last_face_detect_index'] = previous_frame['last_face_detect_index']
+
+    def detect_landmarks_68(self, frame):
+        """Detect 68-point facial landmarks for faces in frame."""
+        predictor = get_landmarks_68_predictor()
+        landmarks = []
+        for face in frame['faces']:
+            l, t, w, h = face
+            rectangle = dlib.rectangle(left=int(l), top=int(t), right=int(l+w), bottom=int(t+h))
+            landmarks_dlib = predictor(frame['grey'], rectangle)
+
+            def tuple_from_dlib_shape(index):
+                p = landmarks_dlib.part(index)
+                return (p.x, p.y)
+
+            num_landmarks = landmarks_dlib.num_parts
+            landmarks.append(np.array([tuple_from_dlib_shape(i) for i in range(num_landmarks)]))
+
+        # Project down to 5-point landmarks for compability
+        five_point_landmarks = [landmarks[36]] + \
+                               [landmarks[39]] + \
+                               [landmarks[27]] + \
+                               [landmarks[42]] + \
+                               [landmarks[45]]
+        frame['landmarks'] = five_point_landmarks
+
 
     def detect_landmarks(self, frame):
         """Detect 5-point facial landmarks for faces in frame."""
@@ -228,8 +253,9 @@ class FramesSource(BaseDataSource):
         oh, ow = self._eye_image_shape
 
         # Select which landmarks (raw/smoothed) to use
-        frame_landmarks = (frame['smoothed_landmarks'] if 'smoothed_landmarks' in frame
-                           else frame['landmarks'])
+        #frame_landmarks = (frame['smoothed_landmarks'] if 'smoothed_landmarks' in frame
+        #                   else frame['landmarks'])
+        frame_landmarks = frame['landmarks']
 
         for face, landmarks in zip(frame['faces'], frame_landmarks):
             # Segment eyes
@@ -316,6 +342,7 @@ class FramesSource(BaseDataSource):
 
 _face_detector = None
 _landmarks_predictor = None
+_landmarks_68_predictor = None
 
 
 def _get_dlib_data_file(dat_name):
@@ -363,10 +390,18 @@ def get_face_detector():
 
 
 def get_landmarks_predictor():
-    """Get a singleton dlib face landmark predictor."""
+    """Get a singleton dlib face 5 points landmark predictor."""
     global _landmarks_predictor
     if not _landmarks_predictor:
         dat_path = _get_dlib_data_file('shape_predictor_5_face_landmarks.dat')
         # dat_path = _get_dlib_data_file('shape_predictor_68_face_landmarks.dat')
         _landmarks_predictor = dlib.shape_predictor(dat_path)
     return _landmarks_predictor
+
+def get_landmarks_68_predictor():
+    """Get a singleton dlib face 68 points landmark predictor."""
+    global _landmarks_68_predictor
+    if not _landmarks_68_predictor:
+        dat_path = _get_dlib_data_file('shape_predictor_68_face_landmarks.dat')
+        _landmarks_68_predictor = dlib.shape_predictor(dat_path)
+    return _landmarks_68_predictor

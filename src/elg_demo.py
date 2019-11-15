@@ -228,10 +228,14 @@ if __name__ == '__main__':
                                        if 'smoothed_landmarks' in frame
                                        else frame['landmarks'])
                     for f, face in enumerate(frame['faces']):
-                        for landmark in frame_landmarks[f][:-1]:
-                            cv.drawMarker(bgr, tuple(np.round(landmark).astype(np.int32)),
-                                          color=(0, 0, 255), markerType=cv.MARKER_STAR,
-                                          markerSize=2, thickness=1, line_type=cv.LINE_AA)
+                        try:
+                            for landmark in frame_landmarks[f][:-1]:
+                                cv.drawMarker(bgr, tuple(np.round(landmark).astype(np.int32)),
+                                              color=(0, 0, 255), markerType=cv.MARKER_STAR,
+                                              markerSize=2, thickness=1, line_type=cv.LINE_AA)
+                        except IndexError:
+                            print(f"Catch index error on {frame['frame_index']}")
+                            pass
                         cv.rectangle(
                             bgr, tuple(np.round(face[:2]).astype(np.int32)),
                             tuple(np.round(np.add(face[:2], face[2:])).astype(np.int32)),
