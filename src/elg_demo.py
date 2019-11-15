@@ -41,7 +41,7 @@ if __name__ == '__main__':
     session_config = tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))
     gpu_available = False
     try:
-        gpus = [d for d in device_lib.list_local_devices(config=session_config)
+        gpus = [d for d in device_lib.list_local_devices(session_config=session_config)
                 if d.device_type == 'GPU']
         gpu_available = len(gpus) > 0
     except:
