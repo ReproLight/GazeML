@@ -108,7 +108,7 @@ class KerasELG():
             
         # Upsample
         up2 = Lambda(
-            lambda x: tf.image.resize_bicubic(
+            lambda x: tf.compat.v1.image.resize_bicubic(
                 x[0],
                 x[1].shape.as_list()[1:3], 
                 align_corners=True))([low3, up1]) # default resize_bilear
