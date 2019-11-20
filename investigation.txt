@@ -1,0 +1,65 @@
+test_data: Dict[str, BaseDataSource] : {"videostream", Video}
+
+# ---------------------------------------------------------------------------------------------------------------
+
+# Examine Function ELG.build_model()
+
+data_source = datasources.video.Video
+input_tensors = dict of length 3
+  {'eye': np.array(shape=(2, 1, 108, 180), dtype=float32)
+   'eye_index': np.array(shape=(2,), dtype=uint8)
+   'frame_index': np.array(shape=(2,), dtype=int64)
+  }
+
+# ---------------------------------------------------------------------------------------------------------------
+
+for i, eye_dict in enumerate(frame['eyes']):
+   yield {
+            'frame_index': np.int64(current_index),
+            'eye': eye_dict['image'],
+            'eye_index': np.uint8(i),
+         }
+
+# ---------------------------------------------------------------------------------------------------------------
+
+x = input_tensors['eye']
+
+# ---------------------------------------------------------------------------------------------------------------
+
+Optional
+
+y1 = input_tensors['heatmaps'] if 'heatmaps' in input_tensors else None
+y2 = input_tensors['landmarks'] if 'landmarks' in input_tensors else None
+y3 = input_tensors['radius'] if 'radius' in input_tensors else None
+
+
+freeze_graph.freeze_graph(
+'tensorflowmodel.pbtxt',          <- input_graph: A 'GraphDef' file to load
+'',                               <- input_saver: A TensorFlow Saver file
+False,                            <- input_binary: bool (False = .pbtxt)
+'tensorflowmodel.ckpt',           <- input_checkpoint: the prefix of a v1 or v2 checkpoint
+'output/softmax',                 <- output_node_names: names of output nodes, comma separated
+'save/restore_all',               <- restore_op_name: Unused
+'save/Const:0',                   <- filename_tensor_name: Unused
+'frozentensorflowModel.bp',       <- output_graph: string where to write the frozen GraphDef
+True,                             <- clear_devices: bool whether to remove device specifications
+''                                <- variable_names_whitelist: the set of variables to convert (optional, default all vars)
+)
+
+output_node_names:
+heatmaps  : hourglass/hg_2/after/hmap/conv/BiasAdd:0
+landmarks : upscale/mul:0
+radius    : radius/out/fc/BiasAdd:0
+
+input_tensors:
+
+{'eye': <tf.Tensor 'Video/fifo_queue_DequeueMany:1' shape=(2, 1, 36, 60) dtype=float32>,
+ 'eye_index': <tf.Tensor 'Video/fifo_queue_DequeueMany:2' shape=(2,) dtype=uint8>,
+ 'frame_index': <tf.Tensor 'Video/fifo_queue_DequeueMany:0' shape=(2,) dtype=int64>}
+
+output_tensors:
+
+{'heatmaps': <tf.Tensor 'hourglass/hg_2/after/hmap/conv/BiasAdd:0' shape=(2, 18, 36, 60) dtype=float32>,
+ 'landmarks': <tf.Tensor 'upscale/mul:0' shape=(2, 18, 2) dtype=float32>,
+ 'radius': <tf.Tensor 'radius/out/fc/BiasAdd:0' shape=(2, 1) dtype=float32>}
+
