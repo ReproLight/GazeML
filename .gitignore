@@ -1,9 +1,6 @@
 # Datasets folder
 datasets/*
 
-# Outputs folder
-outputs/
-
 # Jupyter
 src/.ipynb_checkpoints
 
