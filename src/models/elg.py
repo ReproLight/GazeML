@@ -304,6 +304,25 @@ class ELG(BaseModel):
                 lmrk_ys * (h - 1.0) + 0.5,
             ], axis=2)  # N x 18 x 2
 
+    def freeze(self):
+        init = tf.global_variables_initializer()
+        self._tensorflow_session.run(init)
+        self.checkpoint.load_all()
+        saver = tf.train.Saver()
+        saver.save(self._tensorflow_session, './gazeml.ckpt')
+        tf.train.write_graph(self._tensorflow_session.graph.as_graph_def(), '.', 'gazeml.pbtxt', as_text=True)
+
+        from tensorflow.python.tools import freeze_graph
+        freeze_graph.freeze_graph('./gazeml.pbtxt',
+                                  '',
+                                  False,
+                                  './gazeml.ckpt',
+                                  'hourglass/hg_2/after/hmap/conv/BiasAdd:0,upscale/mul:0,radius/out/fc/BiasAdd:0',
+                                  'save/restore_all',
+                                  'save/Const:0',
+                                  './gazeml.pb',
+                                  True,
+                                  '')
 
 def estimate_gaze_from_landmarks(iris_landmarks, iris_centre, eyeball_centre, eyeball_radius,
                                  initial_gaze=None):
