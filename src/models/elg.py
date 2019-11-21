@@ -305,12 +305,14 @@ class ELG(BaseModel):
             ], axis=2)  # N x 18 x 2
 
     def freeze(self):
-        init = tf.global_variables_initializer()
-        self._tensorflow_session.run(init)
-        self.checkpoint.load_all()
-        saver = tf.train.Saver()
+        #init = tf.global_variables_initializer()
+        #self._tensorflow_session.run(init)
+        #self.checkpoint.load_all()
+        saver = tf.compat.v1.train.Saver()
         saver.save(self._tensorflow_session, './gazeml.ckpt')
-        tf.train.write_graph(self._tensorflow_session.graph.as_graph_def(), '.', 'gazeml.pbtxt', as_text=True)
+        graph = tf.get_default_graph()
+        #self._tensorflow_session.get_default_graph()
+        tf.io.write_graph(graph, '.', 'gazeml.pbtxt', as_text=True)
 
         from tensorflow.python.tools import freeze_graph
         freeze_graph.freeze_graph('./gazeml.pbtxt',
