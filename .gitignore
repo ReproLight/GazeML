@@ -11,3 +11,7 @@ __pycache__/
 # Python package caches
 dist/
 *.egg-info/
+
+# Log files
+outputs/ELG_i180x108_f60x36_n64_m3/messages.log
+outputs/ELG_i60x36_f60x36_n32_m2/messages.log
