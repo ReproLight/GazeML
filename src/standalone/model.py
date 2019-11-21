@@ -45,8 +45,8 @@ class ELG(object):
         # all_data_sources = train_data_sources + test_data_sources
         # first_data_source = all_data_sources.pop()
 
-        self._batch_size = 1
-        self._data_format = "NHWC"
+        self._batch_size = 2
+        self._data_format = "NHWC" # GPU "NCHW"
 
         self._data_format_longer = ('channels_first' if self._data_format == 'NCHW'
                                     else 'channels_last')
