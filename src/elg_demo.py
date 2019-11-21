@@ -94,6 +94,22 @@ if __name__ == '__main__':
                 ],
             )
 
+        #model.initialize_if_not(training=False)
+        #model.freeze()
+        # with open("gazeml_network.txt", "w") as f:
+        #     graph = tf.get_default_graph()
+        #     operations = graph.get_operations()
+        #     for op in operations:
+        #         name = op.name
+        #         inputs = op.inputs
+        #         outputs = op.outputs
+        #         print(f"name:    {name}", file=f)
+        #         print(f"outputs: {outputs}", file=f)
+        #         print(40*"-", file=f)
+        #import sys
+        #sys.exit(0)
+
+
         # Record output frames to file if requested
         if args.record_video:
             video_out = None
