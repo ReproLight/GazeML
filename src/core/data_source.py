@@ -54,7 +54,7 @@ class BaseDataSource(object):
             self._fread_queue_capacity = (num_threads + 1) * batch_size
         self._fread_queue = queue.Queue(maxsize=self._fread_queue_capacity)
 
-        with tf.variable_scope(''.join(c for c in self.short_name if c.isalnum())):
+        with tf.compat.v1.variable_scope(''.join(c for c in self.short_name if c.isalnum())):
             # Setup preprocess queue
             labels, dtypes, shapes = self._determine_dtypes_and_shapes()
             self._preprocess_queue_capacity = (min_after_dequeue + (num_threads + 1) * batch_size
