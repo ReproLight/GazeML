@@ -135,16 +135,9 @@ class FramesSource(object):
     def read_entry_job(self):
         """Job to read an entry and enqueue to _fread_queue."""
         read_entry = self.entry_generator()
-        while not self._coordinator.should_stop():
-            try:
-                entry = next(read_entry)
-            except StopIteration:
-                logger.debug('Reached EOF in %s' % threading.current_thread().name)
-                break
-            if entry is not None:
-                self._fread_queue.put(entry)
-        read_entry.close()
-        logger.debug('Exiting thread %s' % threading.current_thread().name)
+        entry = next(read_entry)
+        if entry is not None:
+            self._fread_queue.put(entry)
 
     def set_frame(self, frame):
         self.frame = frame
@@ -155,21 +148,20 @@ class FramesSource(object):
             yield self.frame
             sleep(1)
 
+    def preprocess_data(self):
+        self.read_entry_job()
+        self.preprocess_job()
+
     def preprocess_job(self):
         """Job to fetch and preprocess an entry."""
-        while not self._coordinator.should_stop():
-            raw_entry = self._fread_queue.get()
-            if raw_entry is None:
-                return
-            preprocessed_entry_dict = self.preprocess_entry(raw_entry)
-            if preprocessed_entry_dict is not None:
-                feed_dict = dict([(self._tensors_to_enqueue[label], value)
-                                  for label, value in preprocessed_entry_dict.items()])
-                try:
-                    self._tensorflow_session.run(self._enqueue_op, feed_dict=feed_dict)
-                except (tf.errors.CancelledError, RuntimeError):
-                    break
-        logger.debug('Exiting thread %s' % threading.current_thread().name)
+        raw_entry = self._fread_queue.get()
+        if raw_entry is None:
+            return
+        preprocessed_entry_dict = self.preprocess_entry(raw_entry)
+        if preprocessed_entry_dict is not None:
+            feed_dict = dict([(self._tensors_to_enqueue[label], value)
+                              for label, value in preprocessed_entry_dict.items()])
+            self._tensorflow_session.run(self._enqueue_op, feed_dict=feed_dict)
 
     def create_threads(self):
         """Create Python threads for multi-threaded read and preprocess jobs."""
@@ -196,8 +188,9 @@ class FramesSource(object):
 
     def create_and_start_threads(self):
         """Create and begin threads for preprocessing."""
-        self.create_threads()
-        self.start_threads()
+        pass
+        #self.create_threads()
+        #self.start_threads()
 
     @property
     def output_tensors(self):

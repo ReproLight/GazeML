@@ -229,7 +229,8 @@ class BaseModel(object):
 
         # Start pre-processing routines
         for _, datasource in self._train_data.items():
-            datasource.create_and_start_threads()
+            #datasource.create_and_start_threads()
+            datasource.preprocess_data()
 
         # Initialize all variables
         self._tensorflow_session.run(tf.global_variables_initializer())
@@ -372,6 +373,7 @@ class BaseModel(object):
         # TODO: Make more generic by not picking first source
         data_source = next(iter(self._train_data.values()))
         while True:
+            data_source.preprocess_data()
             fetches = dict(self.output_tensors['train'], **data_source.output_tensors)
             start_time = time.time()
             outputs = self._tensorflow_session.run(
