@@ -235,7 +235,6 @@ class FramesSource(object):
                 self.detect_faces(frame)
                 self.detect_landmarks(frame)
                 self.segment_eyes(frame)
-                #self.update_face_boxes(frame)
                 frame['time']['after_preprocessing'] = time.time()
 
                 for i, eye_dict in enumerate(frame['eyes']):
@@ -334,9 +333,6 @@ class FramesSource(object):
         # Final output dimensions
         oh, ow = self._eye_image_shape
 
-        # Select which landmarks (raw/smoothed) to use
-        #frame_landmarks = (frame['smoothed_landmarks'] if 'smoothed_landmarks' in frame
-        #                   else frame['landmarks'])
         frame_landmarks = frame['landmarks']
 
         for face, landmarks in zip(frame['faces'], frame_landmarks):
@@ -394,33 +390,6 @@ class FramesSource(object):
                     'side': 'left' if is_left else 'right',
                 })
         frame['eyes'] = eyes
-
-    def update_face_boxes(self, frame):
-        """Update face bounding box based on detected landmarks."""
-        frame_landmarks = (frame['smoothed_landmarks'] if 'smoothed_landmarks' in frame
-                           else frame['landmarks'])
-        for i, (face, landmarks) in enumerate(zip(frame['faces'], frame_landmarks)):
-            x_min, y_min = np.amin(landmarks, axis=0)
-            x_max, y_max = np.amax(landmarks, axis=0)
-            x_mid, y_mid = 0.5 * (x_max + x_min), 0.5 * (y_max + y_min)
-            w, h = x_max - x_min, y_max - y_min
-            new_w = 2.2 * max(h, w)
-            half_w = 0.5 * new_w
-            frame['faces'][i] = (int(x_mid - half_w), int(y_mid - half_w), int(new_w), int(new_w))
-
-            # x1, y1 = landmarks[0, :]
-            # x2, y2 = landmarks[3, :]
-            # face_width = 2.5 * np.sqrt((x1 - x2)**2 + (y1 - y2)**2)
-            # if face_width == 0.0:
-            #     continue
-            #
-            # cx, cy = landmarks[4, :]
-            # roll = 0.0 if x1 == x2 else np.arctan((y2 - y1) / (x2 - x1))
-            #
-            # hdx = 0.5 * face_width * (2. - np.abs(np.cos(roll)))
-            # hdy = 0.5 * face_width * (1. + np.abs(np.sin(roll)))
-            # print(np.degrees(roll), face_width, hdx, hdy)
-            # frame['faces'][i] = (int(cx - hdx), int(cy - hdy), int(2*hdx), int(2*hdy))
 
 _face_detector = None
 _landmarks_predictor = None
