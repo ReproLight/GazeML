@@ -11,3 +11,6 @@ __pycache__/
 # Python package caches
 dist/
 *.egg-info/
+
+#
+.idea
