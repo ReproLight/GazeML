@@ -251,7 +251,7 @@ class FramesSource(object):
             while range(1) if yield_just_one else True:
                 # Grab frame
                 with self._proc_mutex:
-                    before_frame_read, bgr, after_frame_read = self._frame_read_queue.get()
+                    bgr = self.frame
                     bgr = cv.flip(bgr, flipCode=1)  # Mirror
                     current_index = self._last_frame_index + 1
                     self._last_frame_index = current_index
@@ -260,8 +260,8 @@ class FramesSource(object):
                     frame = {
                         'frame_index': current_index,
                         'time': {
-                            'before_frame_read': before_frame_read,
-                            'after_frame_read': after_frame_read,
+                            'before_frame_read': 0,
+                            'after_frame_read': 0,
                         },
                         'bgr': bgr,
                         'grey': grey,
