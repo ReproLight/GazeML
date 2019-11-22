@@ -45,14 +45,24 @@ if __name__ == '__main__':
 
         # Define frame data source
         # Change data_format='NHWC' if not using CUDA
+
+        print("Create Data source")
         data_source = FramesSource(tensorflow_session=session, batch_size=batch_size,
                                 data_format='NCHW' if gpu_available else 'NHWC',
                                 eye_image_shape=(36, 60))
 
+        print("Create Data source finished")
+        print("Create Model")
         model = ELG(
                     session, train_data={'videostream': data_source},
                 )
+        print("Create Model finished")
 
+        print("Create Inference generator")
         infer = model.inference_generator()
+        print("Create Inference generator finished")
+        print ("Start inference")
         output = next(infer)
+        print("inference finished")
+        print("Print output:")
         print(output)
