@@ -71,26 +71,21 @@ class BaseModel(object):
         with tf.variable_scope('savers'):
             checkpoint.build_savers()  # Create savers
 
-        # Start pre-processing routines
-        self._data_source.preprocess_data()
-
         # Initialize all variables
         self._tensorflow_session.run(tf.global_variables_initializer())
         checkpoint.load_all()
         self._initialized = True
 
-    def inference_generator(self):
+    def inference(self):
         """Perform inference on test data and yield a batch of output."""
-        while True:
-            self._data_source.preprocess_data()
-            fetches = dict(self.output_tensors, **self._data_source.output_tensors)
-            start_time = time.time()
-            outputs = self._tensorflow_session.run(
-                fetches=fetches,
-                feed_dict={
-                    self.is_training: False,
-                    self.use_batch_statistics: True,
-                },
-            )
-            outputs['inference_time'] = 1e3*(time.time() - start_time)
-            yield outputs
+        self._data_source.preprocess_data()
+        start_time = time.time()
+        outputs = self._tensorflow_session.run(
+            fetches=self.output_tensors,
+            feed_dict={
+                self.is_training: False,
+                self.use_batch_statistics: True,
+            },
+        )
+        outputs['inference_time'] = time.time() - start_time
+        return outputs

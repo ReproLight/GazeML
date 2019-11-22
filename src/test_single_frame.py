@@ -41,7 +41,7 @@ if __name__ == '__main__':
     with tf.Session(config=session_config) as session:
 
         # Declare some parameters
-        batch_size = 2
+        batch_size = 1
 
         # Define frame data source
         # Change data_format='NHWC' if not using CUDA
@@ -58,11 +58,8 @@ if __name__ == '__main__':
                 )
         print("Create Model finished")
 
-        print("Create Inference generator")
-        infer = model.inference_generator()
-        print("Create Inference generator finished")
         print ("Start inference")
-        output = next(infer)
+        output = model.inference()
         print("inference finished")
         print("Print output:")
         print(output)
