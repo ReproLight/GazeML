@@ -43,8 +43,6 @@ class FramesSource(object):
         self._proc_mutex = threading.Lock()
 
         self._last_frame_index = 0
-        self._indices = []
-        self._frames = {}
         self._open = True
 
         assert tensorflow_session is not None and isinstance(tensorflow_session, tf.compat.v1.Session)
@@ -232,20 +230,10 @@ class FramesSource(object):
                         'bgr': bgr,
                         'grey': grey,
                     }
-                    self._frames[current_index] = frame
-                    self._indices.append(current_index)
-
-                    # Keep just a few frames around
-                    frames_to_keep = 120
-                    if len(self._indices) > frames_to_keep:
-                        for index in self._indices[:-frames_to_keep]:
-                            del self._frames[index]
-                        self._indices = self._indices[-frames_to_keep:]
 
                 # Eye image segmentation pipeline
                 self.detect_faces(frame)
                 self.detect_landmarks(frame)
-                self.calculate_smoothed_landmarks(frame)
                 self.segment_eyes(frame)
                 #self.update_face_boxes(frame)
                 frame['time']['after_preprocessing'] = time.time()
@@ -275,37 +263,27 @@ class FramesSource(object):
     def detect_faces(self, frame):
         """Detect all faces in a frame."""
         frame_index = frame['frame_index']
-        previous_index = self._indices[self._indices.index(frame_index) - 1]
-        previous_frame = self._frames[previous_index]
-        if ('last_face_detect_index' not in previous_frame or
-                frame['frame_index'] - previous_frame['last_face_detect_index'] > 0):
-            detector = get_face_detector()
-            if detector.__class__.__name__ == 'CascadeClassifier':
-                detections = detector.detectMultiScale(frame['grey'])
-            else:
-                detections = detector(cv.resize(frame['grey'], (0, 0), fx=0.5, fy=0.5), 0)
-            faces = []
-            for d in detections:
-                try:
-                    l, t, r, b = d.rect.left(), d.rect.top(), d.rect.right(), d.rect.bottom()
-                    l *= 2
-                    t *= 2
-                    r *= 2
-                    b *= 2
-                    w, h = r - l, b - t
-                except AttributeError:  # Using OpenCV LBP detector on CPU
-                    l, t, w, h = d
-                faces.append((l, t, w, h))
-            faces.sort(key=lambda bbox: bbox[0])
-            frame['faces'] = faces
-            frame['last_face_detect_index'] = frame['frame_index']
 
-            # Clear previous known landmarks. This is to disable smoothing when new face detect
-            # occurs. This allows for recovery of drifted detections.
-            previous_frame['landmarks'] = []
+        detector = get_face_detector()
+        if detector.__class__.__name__ == 'CascadeClassifier':
+            detections = detector.detectMultiScale(frame['grey'])
         else:
-            frame['faces'] = previous_frame['faces']
-            frame['last_face_detect_index'] = previous_frame['last_face_detect_index']
+            detections = detector(cv.resize(frame['grey'], (0, 0), fx=0.5, fy=0.5), 0)
+        faces = []
+        for d in detections:
+            try:
+                l, t, r, b = d.rect.left(), d.rect.top(), d.rect.right(), d.rect.bottom()
+                l *= 2
+                t *= 2
+                r *= 2
+                b *= 2
+                w, h = r - l, b - t
+            except AttributeError:  # Using OpenCV LBP detector on CPU
+                l, t, w, h = d
+            faces.append((l, t, w, h))
+        faces.sort(key=lambda bbox: bbox[0])
+        frame['faces'] = faces
+        frame['last_face_detect_index'] = frame['frame_index']
 
     def detect_landmarks_68(self, frame):
         """Detect 68-point facial landmarks for faces in frame."""
@@ -348,43 +326,6 @@ class FramesSource(object):
             num_landmarks = landmarks_dlib.num_parts
             landmarks.append(np.array([tuple_from_dlib_shape(i) for i in range(num_landmarks)]))
         frame['landmarks'] = landmarks
-
-    _smoothing_window_size = 10
-    _smoothing_coefficient_decay = 0.5
-    _smoothing_coefficients = None
-
-    def calculate_smoothed_landmarks(self, frame):
-        """If there are previous landmark detections, try to smooth current prediction."""
-        # Cache coefficients based on defined sliding window size
-        if self._smoothing_coefficients is None:
-            coefficients = np.power(self._smoothing_coefficient_decay,
-                                    list(reversed(list(range(self._smoothing_window_size)))))
-            coefficients /= np.sum(coefficients)
-            self._smoothing_coefficients = coefficients.reshape(-1, 1)
-
-        # Get a window of frames
-        current_index = self._indices.index(frame['frame_index'])
-        a = current_index - self._smoothing_window_size + 1
-        if a < 0:
-            """If slice extends before last known frame."""
-            return
-        window_indices = self._indices[a:current_index + 1]
-        window_frames = [self._frames[idx] for idx in window_indices]
-        window_num_landmark_entries = np.array([len(f['landmarks']) for f in window_frames])
-        if np.any(window_num_landmark_entries == 0):
-            """Any frame has zero faces detected."""
-            return
-        if not np.all(window_num_landmark_entries == window_num_landmark_entries[0]):
-            """Not the same number of faces detected in entire window."""
-            return
-
-        # Apply coefficients to landmarks in window
-        window_landmarks = np.asarray([f['landmarks'] for f in window_frames])
-        frame['smoothed_landmarks'] = np.sum(
-            np.multiply(window_landmarks.reshape(self._smoothing_window_size, -1),
-                        self._smoothing_coefficients),
-            axis=0,
-        ).reshape(window_num_landmark_entries[-1], -1, 2)
 
     def segment_eyes(self, frame):
         """From found landmarks in previous steps, segment eye image."""
