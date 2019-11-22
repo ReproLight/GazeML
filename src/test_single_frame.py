@@ -56,4 +56,3 @@ if __name__ == '__main__':
         infer = model.inference_generator()
         output = next(infer)
         print(output)
-        

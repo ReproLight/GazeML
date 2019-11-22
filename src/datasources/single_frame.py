@@ -14,7 +14,7 @@ class SingleFrame(FramesSource):
         self._short_name = 'Single frame'
 
         # load image
-        fn = "./test_imgs/Lenna.png"
+        fn = "/home/jetson/wilfried/GazeML/src/test_imgs/Lenna.png"
         im = Image.open(fn)
         image = np.asanyarray(im)
 
