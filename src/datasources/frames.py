@@ -52,7 +52,6 @@ class FramesSource(object):
         self.batch_size = batch_size
         self._tensorflow_session = tensorflow_session
         self._coordinator = tf.train.Coordinator()
-        self.all_threads = []
 
         # Setup file read queue
         self._fread_queue = queue.Queue(maxsize=batch_size)
@@ -142,12 +141,6 @@ class FramesSource(object):
     def set_frame(self, frame):
         self.frame = frame
 
-    def frame_generator(self):
-        """yield frame"""
-        while True:
-            yield self.frame
-            sleep(1)
-
     def preprocess_data(self):
         self.read_entry_job()
         self.preprocess_job()
@@ -162,35 +155,6 @@ class FramesSource(object):
             feed_dict = dict([(self._tensors_to_enqueue[label], value)
                               for label, value in preprocessed_entry_dict.items()])
             self._tensorflow_session.run(self._enqueue_op, feed_dict=feed_dict)
-
-    def create_threads(self):
-        """Create Python threads for multi-threaded read and preprocess jobs."""
-        name = self.short_name
-        self.all_threads = []
-
-        def _create_and_register_thread(*args, **kwargs):
-            thread = threading.Thread(*args, **kwargs)
-            thread.daemon = True
-            self.all_threads.append(thread)
-
-        # File read thread
-        _create_and_register_thread(target=self.read_entry_job, name='fread_%s_%d' % (name, 0))
-
-        # Preprocess thread
-        _create_and_register_thread(target=self.preprocess_job,
-                                    name='preprocess_%s_%d' % (name, 0))
-
-    def start_threads(self):
-        """Begin executing all created threads."""
-        assert len(self.all_threads) > 0
-        for thread in self.all_threads:
-            thread.start()
-
-    def create_and_start_threads(self):
-        """Create and begin threads for preprocessing."""
-        pass
-        #self.create_threads()
-        #self.start_threads()
 
     @property
     def output_tensors(self):

@@ -229,7 +229,6 @@ class BaseModel(object):
 
         # Start pre-processing routines
         for _, datasource in self._train_data.items():
-            #datasource.create_and_start_threads()
             datasource.preprocess_data()
 
         # Initialize all variables
