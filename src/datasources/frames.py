@@ -15,6 +15,10 @@ import cv2 as cv
 import numpy as np
 import tensorflow as tf
 
+from PIL import Image
+from time import sleep
+
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -28,6 +32,13 @@ class FramesSource(object):
                  data_format: str = 'NHWC',
                  **kwargs):
         """Create queues and threads to read and preprocess data."""
+
+        # load image
+        fn = "/home/jetson/wilfried/GazeML/src/test_imgs/Lenna.png"
+        im = Image.open(fn)
+        image = np.asanyarray(im)
+
+        self.frame = image
         self._eye_image_shape = eye_image_shape
         self._proc_mutex = threading.Lock()
         self._read_mutex = threading.Lock()
@@ -42,8 +53,6 @@ class FramesSource(object):
         self._indices = []
         self._frames = {}
         self._open = True
-
-        preprocess_queue_capacity = batch_size
 
         assert tensorflow_session is not None and isinstance(tensorflow_session, tf.compat.v1.Session)
         assert isinstance(batch_size, int) and batch_size > 0
@@ -60,9 +69,8 @@ class FramesSource(object):
         with tf.compat.v1.variable_scope(''.join(c for c in self.short_name if c.isalnum())):
             # Setup preprocess queue
             labels, dtypes, shapes = self._determine_dtypes_and_shapes()
-            self._preprocess_queue_capacity = preprocess_queue_capacity
             self._preprocess_queue = tf.FIFOQueue(
-                    capacity=self._preprocess_queue_capacity,
+                    capacity=batch_size,
                     dtypes=dtypes, shapes=shapes,
             )
             self._tensors_to_enqueue = OrderedDict([
@@ -88,7 +96,7 @@ class FramesSource(object):
         logger.info('Initialized data source: "%s"' % self.short_name)
 
 
-    _short_name = 'Frames'
+    _short_name = 'Single Frame'
 
     def __del__(self):
         """Destruct and clean up instance."""
@@ -151,6 +159,15 @@ class FramesSource(object):
                 self._fread_queue.put(entry)
         read_entry.close()
         logger.debug('Exiting thread %s' % threading.current_thread().name)
+
+    def set_frame(self, frame):
+        self.frame = frame
+
+    def frame_generator(self):
+        """yield frame"""
+        while True:
+            yield self.frame
+            sleep(1)
 
     def preprocess_job(self):
         """Job to fetch and preprocess an entry."""
@@ -227,10 +244,6 @@ class FramesSource(object):
                     self._frame_read_queue.queue.clear()
                     self._frame_read_queue.put_nowait((before_frame_read, bgr, after_frame_read))
         self._open = False
-
-    def frame_generator(self):
-        """Read frame from webcam."""
-        raise NotImplementedError('Frames::frame_generator not implemented.')
 
     def entry_generator(self, yield_just_one=False):
         """Generate eye image entries by detecting faces and facial landmarks."""

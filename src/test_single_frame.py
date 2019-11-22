@@ -13,7 +13,7 @@ import tensorflow as tf
 from PIL import Image
 
 
-from datasources import SingleFrame
+from datasources import FramesSource
 from models import ELG
 import util.gaze
 
@@ -45,7 +45,7 @@ if __name__ == '__main__':
 
         # Define frame data source
         # Change data_format='NHWC' if not using CUDA
-        data_source = SingleFrame(tensorflow_session=session, batch_size=batch_size,
+        data_source = FramesSource(tensorflow_session=session, batch_size=batch_size,
                                 data_format='NCHW' if gpu_available else 'NHWC',
                                 eye_image_shape=(36, 60))
 
