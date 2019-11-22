@@ -31,8 +31,6 @@ class FramesSource(object):
                  num_threads: int = 1,
                  min_after_dequeue: int = 1000,
                  fread_queue_capacity: int = 0,
-                 shuffle=False,
-                 testing=False,
                  **kwargs):
         """Create queues and threads to read and preprocess data."""
         self._eye_image_shape = eye_image_shape
@@ -50,23 +48,13 @@ class FramesSource(object):
         self._frames = {}
         self._open = True
 
-        shuffle = False
         num_threads = 1
         fread_queue_capacity = batch_size
         preprocess_queue_capacity = batch_size
 
         assert tensorflow_session is not None and isinstance(tensorflow_session, tf.compat.v1.Session)
         assert isinstance(batch_size, int) and batch_size > 0
-        if shuffle is None:
-            shuffle = staging
-        self.testing = testing
-        if testing:
-            assert not shuffle and not staging
-            # if num_threads != 1:
-            #     logger.info('Forcing use of single thread for live testing.')
-            # num_threads = 1
         self.staging = staging
-        self.shuffle = shuffle
         self.data_format = data_format.upper()
         assert self.data_format == 'NHWC' or self.data_format == 'NCHW'
         self.batch_size = batch_size
@@ -87,17 +75,10 @@ class FramesSource(object):
             self._preprocess_queue_capacity = (min_after_dequeue + (num_threads + 1) * batch_size
                                                if preprocess_queue_capacity == 0
                                                else preprocess_queue_capacity)
-            if shuffle:
-                self._preprocess_queue = tf.RandomShuffleQueue(
-                        capacity=self._preprocess_queue_capacity,
-                        min_after_dequeue=min_after_dequeue,
-                        dtypes=dtypes, shapes=shapes,
-                )
-            else:
-                self._preprocess_queue = tf.FIFOQueue(
-                        capacity=self._preprocess_queue_capacity,
-                        dtypes=dtypes, shapes=shapes,
-                )
+            self._preprocess_queue = tf.FIFOQueue(
+                    capacity=self._preprocess_queue_capacity,
+                    dtypes=dtypes, shapes=shapes,
+            )
             self._tensors_to_enqueue = OrderedDict([
                 (label, tf.placeholder(dtype, shape=shape, name=label))
                 for label, dtype, shape in zip(labels, dtypes, shapes)
@@ -173,34 +154,6 @@ class FramesSource(object):
         self._coordinator.join(self.all_threads, stop_grace_period_secs=5)
         self.__cleaned_up = True
 
-    def reset(self):
-        """Reset threads and empty queues (where possible)."""
-        assert self.testing is True
-
-        # Clear queues
-        self._coordinator.request_stop()
-        with self._fread_queue.mutex:  # Unblock any self._fread_queue.get calls
-            self._fread_queue.queue.clear()
-        for _ in range(2*self.num_threads):
-            self._fread_queue.put(None)
-        while True:  # Unblock any enqueue requests
-            preprocess_queue_size = self._tensorflow_session.run(self._preprocess_queue_size_op)
-            if preprocess_queue_size == 0:
-                break
-            self._tensorflow_session.run(self._preprocess_queue_clear_op)
-            time.sleep(0.1)
-        while True:  # Unblock any self._fread_queue.put calls
-            try:
-                self._fread_queue.get_nowait()
-            except queue.Empty:
-                break
-            time.sleep(0.1)
-        self._coordinator.join(self.all_threads, stop_grace_period_secs=5)
-
-        # Restart threads
-        self._coordinator.clear_stop()
-        self.create_and_start_threads()
-
     def _determine_dtypes_and_shapes(self):
         """Determine the dtypes and shapes of Tensorflow queue and staging area entries."""
         while True:
@@ -222,11 +175,8 @@ class FramesSource(object):
             try:
                 entry = next(read_entry)
             except StopIteration:
-                if not self.testing:
-                    continue
-                else:
-                    logger.debug('Reached EOF in %s' % threading.current_thread().name)
-                    break
+                logger.debug('Reached EOF in %s' % threading.current_thread().name)
+                break
             if entry is not None:
                 self._fread_queue.put(entry)
         read_entry.close()
