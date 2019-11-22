@@ -62,14 +62,12 @@ class FramesSource(object):
                     capacity=batch_size,
                     dtypes=[tf.float32], shapes=[shape],
             )
-            self._tensors_to_enqueue = dict(eye=tf.placeholder(tf.float32, shape=shape, name='eye'))
+            self.input_tensor = tf.placeholder(tf.float32, shape=shape, name='eye')
 
-            output_tensors = self._preprocess_queue.dequeue_many(self.batch_size)
-            if not isinstance(output_tensors, list):
-                output_tensors = [output_tensors]
-            self._output_tensors = dict([
-                (label, tensor) for label, tensor in zip(labels, output_tensors)
-            ])
+            output_tensor = self._preprocess_queue.dequeue_many(self.batch_size)
+            self._output_tensors = {
+                'eye': output_tensor
+            }
 
         logger.info('Initialized data source: "%s"' % self.short_name)
 
@@ -84,8 +82,8 @@ class FramesSource(object):
         entry = next(read_entry)
 
         preprocessed_eye = self.preprocess_entry(entry)
-        feed_dict = {self._tensors_to_enqueue['eye']: preprocessed_eye}
-        self._tensorflow_session.run(self._preprocess_queue.enqueue(tuple(self._tensors_to_enqueue.values())), feed_dict=feed_dict)
+        feed_dict = {self.input_tensor: preprocessed_eye}
+        self._tensorflow_session.run(self._preprocess_queue.enqueue([self.input_tensor]), feed_dict=feed_dict)
 
     @property
     def output_tensors(self):
