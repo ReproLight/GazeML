@@ -110,7 +110,7 @@ class SummaryManager(object):
         c = tensor.shape.as_list()[-1]
         if c == 3:  # Assume RGB and convert to BGR for visualization
             tensor = tensor[:, :, :, ::-1]   # TODO: find better solution
-        operation = tf.summary.image(name, tensor, **kwargs)
+        operation = tf.compat.v1.summary.image(name, tensor, **kwargs)
         self._register_expensive_op(operation)
 
     def _4d_tensor(self, name, tensor, **kwargs):

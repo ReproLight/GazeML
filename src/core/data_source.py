@@ -16,7 +16,7 @@ class BaseDataSource(object):
     """Base DataSource class."""
 
     def __init__(self,
-                 tensorflow_session: tf.Session,
+                 tensorflow_session: tf.compat.v1.Session,
                  data_format: str = 'NHWC',
                  batch_size: int = 32,
                  num_threads: int = max(4, multiprocessing.cpu_count()),
@@ -28,7 +28,7 @@ class BaseDataSource(object):
                  testing=False,
                  ):
         """Initialize a data source instance."""
-        assert tensorflow_session is not None and isinstance(tensorflow_session, tf.Session)
+        assert tensorflow_session is not None and isinstance(tensorflow_session, tf.compat.v1.Session)
         assert isinstance(batch_size, int) and batch_size > 0
         if shuffle is None:
             shuffle = staging
