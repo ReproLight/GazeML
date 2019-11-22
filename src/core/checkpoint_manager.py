@@ -65,22 +65,3 @@ class CheckpointManager(object):
         if len(iteration_numbers) > 0:
             iteration_number = np.amax(iteration_numbers)
         return iteration_number
-
-    def save_all(self, iteration_number):
-        """Save all prefixes."""
-        prefixes_to_use = []
-        for schedule in self._model._learning_schedule:
-            for prefixes in schedule['loss_terms_to_optimize'].values():
-                prefixes_to_use += prefixes
-        prefixes_to_use = list(set(prefixes_to_use))
-
-        for prefix, saver in self._savers.items():
-            if prefix not in prefixes_to_use:
-                continue
-            output_path = '%s/checkpoints/%s' % (self._model.output_path, prefix)
-            if not os.path.isdir(output_path):
-                os.makedirs(output_path)
-            saver.save(self._tensorflow_session, output_path + '/model',
-                       global_step=iteration_number)
-            logger.debug('Saved %s' % output_path)
-        logger.info('CheckpointManager::save_all call done')

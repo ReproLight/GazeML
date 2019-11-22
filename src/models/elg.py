@@ -53,22 +53,11 @@ class ELG(BaseModel):
         """Build model."""
         input_tensors = data_source.output_tensors
         x = input_tensors['eye']
-        y1 = input_tensors['heatmaps'] if 'heatmaps' in input_tensors else None
-        y2 = input_tensors['landmarks'] if 'landmarks' in input_tensors else None
-        y3 = input_tensors['radius'] if 'radius' in input_tensors else None
 
         outputs = {}
 
         with tf.variable_scope('hourglass'):
-            # TODO: Find better way to specify no. landmarks
-            if y1 is not None:
-                if self._data_format == 'NCHW':
-                    self._hg_num_landmarks = y1.shape.as_list()[1]
-                if self._data_format == 'NHWC':
-                    self._hg_num_landmarks = y1.shape.as_list()[3]
-            else:
-                self._hg_num_landmarks = 18
-            assert self._hg_num_landmarks == 18
+            self._hg_num_landmarks = 18
 
             # Prepare for Hourglass by downscaling via conv
             with tf.variable_scope('pre'):

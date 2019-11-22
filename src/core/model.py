@@ -36,9 +36,6 @@ class BaseModel(object):
         if not os.path.isdir(self.output_path):
             os.makedirs(self.output_path)
 
-        # Register a manager for checkpoints
-        self.checkpoint = CheckpointManager(self)
-
         # Run-time parameters
         with tf.variable_scope('learning_params'):
             self.is_training = tf.placeholder(tf.bool)
@@ -46,6 +43,9 @@ class BaseModel(object):
 
         self.output_tensors = self.build_model(self._train_data)
         logger.info('Built model.')
+        self.initialize()
+        logger.info('Initialized model.')
+        logger.info('Weights loaded')
 
     @property
     def identifier(self):
@@ -61,14 +61,17 @@ class BaseModel(object):
         """Build model."""
         raise NotImplementedError('BaseModel::build_model is not yet implemented.')
 
-    def initialize_if_not(self, training=False):
+    def initialize(self):
         """Initialize variables and begin preprocessing threads."""
         if self._initialized:
             return
 
+        # Register a manager for checkpoints
+        checkpoint = CheckpointManager(self)
+
         # Build supporting operations
         with tf.variable_scope('savers'):
-            self.checkpoint.build_savers()  # Create savers
+            checkpoint.build_savers()  # Create savers
 
         # Start pre-processing routines
         datasource = self._train_data
@@ -76,13 +79,11 @@ class BaseModel(object):
 
         # Initialize all variables
         self._tensorflow_session.run(tf.global_variables_initializer())
+        checkpoint.load_all()
         self._initialized = True
 
     def inference_generator(self):
         """Perform inference on test data and yield a batch of output."""
-        self.initialize_if_not(training=False)
-        self.checkpoint.load_all()  # Load available weights
-
         data_source = self._train_data
         while True:
             data_source.preprocess_data()
