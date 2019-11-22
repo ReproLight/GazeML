@@ -23,7 +23,7 @@ if __name__ == '__main__':
     coloredlogs.install(
         datefmt='%d/%m %H:%M',
         fmt='%(asctime)s %(levelname)s %(message)s',
-        level="CRITICAL",
+        level="INFO",
     )
 
     from tensorflow.python.client import device_lib

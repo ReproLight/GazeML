@@ -54,7 +54,7 @@ class ELG(BaseModel):
         data_source = next(iter(self._train_data.values()))
         data_source.set_difficulty(min((1. / 1e6) * current_step, 1.))
 
-    def build_model(self, data_sources: Dict[str, BaseDataSource], mode: str):
+    def build_model(self, data_sources: Dict[str, BaseDataSource]):
         """Build model."""
         data_source = next(iter(data_sources.values()))
         input_tensors = data_source.output_tensors

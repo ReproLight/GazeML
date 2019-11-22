@@ -21,7 +21,6 @@ class BaseModel(object):
 
     def __init__(self,
                  tensorflow_session: tf.Session,
-                 learning_schedule: List[Dict[str, Any]] = [],
                  train_data: Dict[str, BaseDataSource] = {},
                  test_data: Dict[str, BaseDataSource] = {},
                  identifier: str = None):
@@ -31,10 +30,6 @@ class BaseModel(object):
         self._test_data = test_data
         self._initialized = False
         self.__identifier = identifier
-
-        # Extract and keep known prefixes/scopes
-        self._learning_schedule = learning_schedule
-        self._known_prefixes = [schedule for schedule in learning_schedule]
 
         # Check consistency of given data sources
         train_data_sources = list(train_data.values())
@@ -63,11 +58,6 @@ class BaseModel(object):
 
         # Log messages to file
         root_logger = logging.getLogger()
-        file_handler = logging.FileHandler(self.output_path + '/messages.log')
-        file_handler.setFormatter(root_logger.handlers[0].formatter)
-        for handler in root_logger.handlers[1:]:  # all except stdout
-            root_logger.removeHandler(handler)
-        root_logger.addHandler(file_handler)
 
         # Register a manager for checkpoints
         self.checkpoint = CheckpointManager(self)
@@ -78,8 +68,6 @@ class BaseModel(object):
             self.use_batch_statistics = tf.placeholder(tf.bool)
 
         self._build_all_models()
-
-    __identifier_stem = None
 
     @property
     def identifier(self):
@@ -98,50 +86,15 @@ class BaseModel(object):
 
     def _build_all_models(self):
         """Build training (GPU/CPU) and testing (CPU) streams."""
-        self.output_tensors = {}
-        self.loss_terms = {}
-        self.metrics = {}
-
-        def _build_train_or_test(mode):
-            data_sources = self._train_data if mode == 'train' else self._test_data
-
-            # Build model
-            output_tensors, loss_terms, metrics = self.build_model(data_sources, mode=mode)
-
-            # Record important tensors
-            self.output_tensors[mode] = output_tensors
-            self.loss_terms[mode] = loss_terms
-            self.metrics[mode] = metrics
-
         # Build the main model
-        if len(self._train_data) > 0:
-            _build_train_or_test(mode='train')
-            logger.info('Built model.')
+        output_tensors, loss_terms, metrics = self.build_model(self._train_data)
 
-            # Print no. of parameters and lops
-            flops = tf.profiler.profile(
-                options=tf.profiler.ProfileOptionBuilder(
-                    tf.profiler.ProfileOptionBuilder.float_operation()
-                ).with_empty_output().build())
-            logger.info('------------------------------')
-            logger.info(' Approximate Model Statistics ')
-            logger.info('------------------------------')
-            logger.info('FLOPS per input: {:,}'.format(flops.total_float_ops / self._batch_size))
-            logger.info(
-                'Trainable Parameters: {:,}'.format(
-                    np.sum([np.prod(v.shape.as_list()) for v in tf.trainable_variables()])
-                )
-            )
-            logger.info('------------------------------')
+        # Record important tensors
+        self.output_tensors = output_tensors
 
-        # If there are any test data streams, build same model with different scope
-        # Trainable parameters will be copied at test time
-        if len(self._test_data) > 0:
-            with tf.variable_scope('test'):
-                _build_train_or_test(mode='test')
-            logger.info('Built model for live testing.')
+        logger.info('Built model.')
 
-    def build_model(self, data_sources: Dict[str, BaseDataSource], mode: str):
+    def build_model(self, data_sources: Dict[str, BaseDataSource]):
         """Build model."""
         raise NotImplementedError('BaseModel::build_model is not yet implemented.')
 
@@ -171,7 +124,7 @@ class BaseModel(object):
         data_source = next(iter(self._train_data.values()))
         while True:
             data_source.preprocess_data()
-            fetches = dict(self.output_tensors['train'], **data_source.output_tensors)
+            fetches = dict(self.output_tensors, **data_source.output_tensors)
             start_time = time.time()
             outputs = self._tensorflow_session.run(
                 fetches=fetches,
