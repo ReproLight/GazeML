@@ -64,9 +64,6 @@ class FramesSource(object):
             )
             self._tensors_to_enqueue = dict(eye=tf.placeholder(tf.float32, shape=shape, name='eye'))
 
-            self._enqueue_op = \
-                self._preprocess_queue.enqueue(tuple(self._tensors_to_enqueue.values()))
-
             output_tensors = self._preprocess_queue.dequeue_many(self.batch_size)
             if not isinstance(output_tensors, list):
                 output_tensors = [output_tensors]
@@ -86,10 +83,9 @@ class FramesSource(object):
         read_entry = self.entry_generator()
         entry = next(read_entry)
 
-        preprocessed_entry_dict = self.preprocess_entry(entry)
-        feed_dict = dict([(self._tensors_to_enqueue[label], value)
-                          for label, value in preprocessed_entry_dict.items()])
-        self._tensorflow_session.run(self._enqueue_op, feed_dict=feed_dict)
+        preprocessed_eye = self.preprocess_entry(entry)
+        feed_dict = {self._tensors_to_enqueue['eye']: preprocessed_eye}
+        self._tensorflow_session.run(self._preprocess_queue.enqueue(tuple(self._tensors_to_enqueue.values())), feed_dict=feed_dict)
 
     @property
     def output_tensors(self):
@@ -124,20 +120,16 @@ class FramesSource(object):
         frame['time']['after_preprocessing'] = time.time()
 
         for eye_dict in frame['eyes']:
-            yield {
-                'eye': eye_dict['image'],
-            }
+            yield eye_dict['image']
 
-    def preprocess_entry(self, entry):
+    def preprocess_entry(self, eye):
         """Preprocess segmented eye images for use as neural network input."""
-        eye = entry['eye']
         eye = cv.equalizeHist(eye)
         eye = eye.astype(np.float32)
         eye *= 2.0 / 255.0
         eye -= 1.0
         eye = np.expand_dims(eye, -1 if self.data_format == 'NHWC' else 0)
-        entry['eye'] = eye
-        return entry
+        return eye
 
     def detect_faces(self, frame):
         """Detect all faces in a frame."""
