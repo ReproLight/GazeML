@@ -40,7 +40,6 @@ class FramesSource(object):
 
         self.frame = image
         self._eye_image_shape = eye_image_shape
-        self._proc_mutex = threading.Lock()
 
         self._last_frame_index = 0
         self._open = True
@@ -51,10 +50,6 @@ class FramesSource(object):
         assert self.data_format == 'NHWC' or self.data_format == 'NCHW'
         self.batch_size = batch_size
         self._tensorflow_session = tensorflow_session
-        self._coordinator = tf.train.Coordinator()
-
-        # Setup file read queue
-        self._fread_queue = queue.Queue(maxsize=batch_size)
 
         with tf.compat.v1.variable_scope(''.join(c for c in self.short_name if c.isalnum())):
             # Setup preprocess queue
@@ -88,39 +83,11 @@ class FramesSource(object):
 
     _short_name = 'Single Frame'
 
-    def __del__(self):
-        """Destruct and clean up instance."""
-        self.cleanup()
-
-    __cleaned_up = False
-
-    def cleanup(self):
-        """Force-close all threads."""
-        if self.__cleaned_up:
-            return
-
-        self._coordinator.request_stop()
-
-        # Unblock any self._fread_queue.put calls
-        while True:
-            try:
-                self._fread_queue.get_nowait()
-            except queue.Empty:
-                break
-            time.sleep(0.1)
-
-        # Push data through to trigger exits in preprocess/transfer threads
-        for _ in range(self.batch_size):
-            self._fread_queue.put(None)
-        self._tensorflow_session.run(self._preprocess_queue_close_op)
-
-        self._coordinator.join(self.all_threads, stop_grace_period_secs=5)
-        self.__cleaned_up = True
 
     def _determine_dtypes_and_shapes(self):
         """Determine the dtypes and shapes of Tensorflow queue and staging area entries."""
         while True:
-            raw_entry = next(self.entry_generator(yield_just_one=True))
+            raw_entry = next(self.entry_generator())
             if raw_entry is None:
                 continue
             preprocessed_entry_dict = self.preprocess_entry(raw_entry)
@@ -131,30 +98,17 @@ class FramesSource(object):
         shapes = [value.shape for value in values]
         return labels, dtypes, shapes
 
-    def read_entry_job(self):
-        """Job to read an entry and enqueue to _fread_queue."""
-        read_entry = self.entry_generator()
-        entry = next(read_entry)
-        if entry is not None:
-            self._fread_queue.put(entry)
-
     def set_frame(self, frame):
         self.frame = frame
 
     def preprocess_data(self):
-        self.read_entry_job()
-        self.preprocess_job()
+        read_entry = self.entry_generator()
+        entry = next(read_entry)
 
-    def preprocess_job(self):
-        """Job to fetch and preprocess an entry."""
-        raw_entry = self._fread_queue.get()
-        if raw_entry is None:
-            return
-        preprocessed_entry_dict = self.preprocess_entry(raw_entry)
-        if preprocessed_entry_dict is not None:
-            feed_dict = dict([(self._tensors_to_enqueue[label], value)
-                              for label, value in preprocessed_entry_dict.items()])
-            self._tensorflow_session.run(self._enqueue_op, feed_dict=feed_dict)
+        preprocessed_entry_dict = self.preprocess_entry(entry)
+        feed_dict = dict([(self._tensors_to_enqueue[label], value)
+                          for label, value in preprocessed_entry_dict.items()])
+        self._tensorflow_session.run(self._enqueue_op, feed_dict=feed_dict)
 
     @property
     def output_tensors(self):
@@ -166,44 +120,37 @@ class FramesSource(object):
         """Short name specifying source."""
         return self._short_name
 
-    def entry_generator(self, yield_just_one=False):
+    def entry_generator(self):
         """Generate eye image entries by detecting faces and facial landmarks."""
-        try:
-            while range(1) if yield_just_one else True:
-                # Grab frame
-                with self._proc_mutex:
-                    bgr = self.frame
-                    bgr = cv.flip(bgr, flipCode=1)  # Mirror
-                    current_index = self._last_frame_index + 1
-                    self._last_frame_index = current_index
+        # Grab frame
+        bgr = self.frame
+        bgr = cv.flip(bgr, flipCode=1)  # Mirror
+        current_index = self._last_frame_index + 1
+        self._last_frame_index = current_index
 
-                    grey = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY)
-                    frame = {
-                        'frame_index': current_index,
-                        'time': {
-                            'before_frame_read': 0,
-                            'after_frame_read': 0,
-                        },
-                        'bgr': bgr,
-                        'grey': grey,
-                    }
+        grey = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY)
+        frame = {
+            'frame_index': current_index,
+            'time': {
+                'before_frame_read': 0,
+                'after_frame_read': 0,
+            },
+            'bgr': bgr,
+            'grey': grey,
+        }
 
-                # Eye image segmentation pipeline
-                self.detect_faces(frame)
-                self.detect_landmarks(frame)
-                self.segment_eyes(frame)
-                frame['time']['after_preprocessing'] = time.time()
+        # Eye image segmentation pipeline
+        self.detect_faces(frame)
+        self.detect_landmarks(frame)
+        self.segment_eyes(frame)
+        frame['time']['after_preprocessing'] = time.time()
 
-                for i, eye_dict in enumerate(frame['eyes']):
-                    yield {
-                        'frame_index': np.int64(current_index),
-                        'eye': eye_dict['image'],
-                        'eye_index': np.uint8(i),
-                    }
-
-        finally:
-            # Execute any cleanup operations as necessary
-            pass
+        for i, eye_dict in enumerate(frame['eyes']):
+            yield {
+                'frame_index': np.int64(current_index),
+                'eye': eye_dict['image'],
+                'eye_index': np.uint8(i),
+            }
 
     def preprocess_entry(self, entry):
         """Preprocess segmented eye images for use as neural network input."""
