@@ -48,26 +48,11 @@ class FramesSource(object):
         self.batch_size = batch_size
         self._tensorflow_session = tensorflow_session
 
-        with tf.compat.v1.variable_scope(self.short_name):
-            # Setup preprocess queue
-            labels = ['eye']
-            dtypes = [tf.float32]
-            h, w = self._eye_image_shape
-            if self.data_format == 'NHWC':
-                shape = (h, w, 1)
-            else:
-                shape = (1, h, w)
-
-            self._preprocess_queue = tf.FIFOQueue(
-                    capacity=batch_size,
-                    dtypes=[tf.float32], shapes=[shape],
-            )
-            self.input_tensor = tf.placeholder(tf.float32, shape=shape, name='eye')
-
-            output_tensor = self._preprocess_queue.dequeue_many(self.batch_size)
-            self._output_tensors = {
-                'eye': output_tensor
-            }
+        h, w = self._eye_image_shape
+        if self.data_format == 'NHWC':
+            self.input_shape = (h, w, 1)
+        else:
+            self.input_shape = (1, h, w)
 
         logger.info('Initialized data source: "%s"' % self.short_name)
 
@@ -82,13 +67,7 @@ class FramesSource(object):
         entry = next(read_entry)
 
         preprocessed_eye = self.preprocess_entry(entry)
-        feed_dict = {self.input_tensor: preprocessed_eye}
-        self._tensorflow_session.run(self._preprocess_queue.enqueue([self.input_tensor]), feed_dict=feed_dict)
-
-    @property
-    def output_tensors(self):
-        """Return tensors holding a preprocessed batch."""
-        return self._output_tensors
+        return preprocessed_eye
 
     @property
     def short_name(self):

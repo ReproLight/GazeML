@@ -44,10 +44,10 @@ class ELG(BaseModel):
             self._hg_num_feature_maps, self._hg_num_modules,
         )
 
-    def build_model(self, data_source: FramesSource):
+    def build_model(self):
         """Build model."""
-        input_tensors = data_source.output_tensors
-        x = input_tensors['eye']
+        input_tensors = self._preprocess_queue.dequeue_many(self._data_source.batch_size)
+        x = input_tensors
 
         outputs = {}
 

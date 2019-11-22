@@ -39,7 +39,15 @@ class BaseModel(object):
             self.is_training = tf.placeholder(tf.bool)
             self.use_batch_statistics = tf.placeholder(tf.bool)
 
-        self.output_tensors = self.build_model(self._data_source)
+        with tf.compat.v1.variable_scope("SingleFrame"):
+            # Setup preprocess queue
+            self._preprocess_queue = tf.FIFOQueue(
+                    capacity=self._data_source.batch_size,
+                    dtypes=[tf.float32], shapes=[self._data_source.input_shape],
+            )
+            self.input_tensor = tf.placeholder(tf.float32, shape=self._data_source.input_shape, name='eye')
+
+        self.output_tensors = self.build_model()
         logger.info('Built model.')
         self.initialize()
         logger.info('Initialized model.')
@@ -55,7 +63,7 @@ class BaseModel(object):
         return '%s/%s' % (os.path.abspath(os.path.dirname(__file__) + '/../../outputs'),
                           self.identifier)
 
-    def build_model(self, data_source: FramesSource):
+    def build_model(self):
         """Build model."""
         raise NotImplementedError('BaseModel::build_model is not yet implemented.')
 
@@ -78,7 +86,9 @@ class BaseModel(object):
 
     def inference(self):
         """Perform inference on test data and yield a batch of output."""
-        self._data_source.preprocess_data()
+        eye = self._data_source.preprocess_data()
+        self._tensorflow_session.run(self._preprocess_queue.enqueue([self.input_tensor]),
+                                     feed_dict={self.input_tensor: eye})
         start_time = time.time()
         outputs = self._tensorflow_session.run(
             fetches=self.output_tensors,
