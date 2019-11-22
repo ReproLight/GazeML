@@ -111,23 +111,6 @@ class BaseDataSource(object):
         """Destruct and clean up instance."""
         self.cleanup()
 
-    @property
-    def num_entries(self):
-        """Number of entries in this data source.
-
-        Used to calculate number of steps to train when asked to be trained for # epochs.
-        """
-        raise NotImplementedError('BaseDataSource::num_entries not specified.')
-
-    @property
-    def short_name(self):
-        """Short identifier for data source.
-
-        Overload this magic method if the class is generic, eg. supporting h5py/numpy arrays as
-        input with specific data sources.
-        """
-        raise NotImplementedError('BaseDataSource::short_name not specified.')
-
     __cleaned_up = False
 
     def cleanup(self):
