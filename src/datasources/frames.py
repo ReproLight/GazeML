@@ -48,25 +48,21 @@ class FramesSource(object):
         self.batch_size = batch_size
         self._tensorflow_session = tensorflow_session
 
-        with tf.compat.v1.variable_scope(''.join(c for c in self.short_name if c.isalnum())):
+        with tf.compat.v1.variable_scope(self.short_name):
             # Setup preprocess queue
-            labels, dtypes, shapes = self._determine_dtypes_and_shapes()
+            labels = ['eye']
+            dtypes = [tf.float32]
+            h, w = self._eye_image_shape
+            shapes = [(1, h, w)]
+
             self._preprocess_queue = tf.FIFOQueue(
                     capacity=batch_size,
-                    dtypes=dtypes, shapes=shapes,
+                    dtypes=[tf.float32], shapes=shapes,
             )
-            self._tensors_to_enqueue = OrderedDict([
-                (label, tf.placeholder(dtype, shape=shape, name=label))
-                for label, dtype, shape in zip(labels, dtypes, shapes)
-            ])
+            self._tensors_to_enqueue = dict(eye=tf.placeholder(tf.float32, shape=(1, h, w), name='eye'))
 
             self._enqueue_op = \
                 self._preprocess_queue.enqueue(tuple(self._tensors_to_enqueue.values()))
-            self._preprocess_queue_close_op = \
-                self._preprocess_queue.close(cancel_pending_enqueues=True)
-            self._preprocess_queue_size_op = self._preprocess_queue.size()
-            self._preprocess_queue_clear_op = \
-                self._preprocess_queue.dequeue_up_to(self._preprocess_queue.size())
 
             output_tensors = self._preprocess_queue.dequeue_many(self.batch_size)
             if not isinstance(output_tensors, list):
@@ -78,18 +74,7 @@ class FramesSource(object):
         logger.info('Initialized data source: "%s"' % self.short_name)
 
 
-    _short_name = 'Single Frame'
-
-
-    def _determine_dtypes_and_shapes(self):
-        """Determine the dtypes and shapes of Tensorflow queue and staging area entries."""
-        raw_entry = next(self.entry_generator())
-        preprocessed_entry_dict = self.preprocess_entry(raw_entry)
-
-        labels, values = zip(*list(preprocessed_entry_dict.items()))
-        dtypes = [value.dtype for value in values]
-        shapes = [value.shape for value in values]
-        return labels, dtypes, shapes
+    _short_name = 'SingleFrame'
 
     def set_frame(self, frame):
         self.frame = frame
@@ -135,11 +120,9 @@ class FramesSource(object):
         self.segment_eyes(frame)
         frame['time']['after_preprocessing'] = time.time()
 
-        for i, eye_dict in enumerate(frame['eyes']):
+        for eye_dict in frame['eyes']:
             yield {
-                'frame_index': np.int64(0),
                 'eye': eye_dict['image'],
-                'eye_index': np.uint8(i),
             }
 
     def preprocess_entry(self, entry):

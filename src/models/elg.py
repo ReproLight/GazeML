@@ -36,11 +36,7 @@ class ELG(BaseModel):
     @property
     def identifier(self):
         """Identifier for model based on data sources and parameters."""
-        input_tensors = self._data_source.output_tensors
-        if self._data_format == 'NHWC':
-            _, eh, ew, _ = input_tensors['eye'].shape.as_list()
-        else:
-            _, _, eh, ew = input_tensors['eye'].shape.as_list()
+        eh, ew = self._data_source._eye_image_shape
         return 'ELG_i%dx%d_f%dx%d_n%d_m%d' % (
             ew, eh,
             int(ew / self._hg_first_layer_stride),
