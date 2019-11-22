@@ -34,7 +34,7 @@ class FramesSource(object):
         """Create queues and threads to read and preprocess data."""
 
         # load image
-        fn = "/home/jetson/wilfried/GazeML/src/test_imgs/Lenna.png"
+        fn = os.path.abspath(os.path.dirname(__file__)) + '/../test_imgs/Lenna.png'
         im = Image.open(fn)
         image = np.asanyarray(im)
 
@@ -53,13 +53,16 @@ class FramesSource(object):
             labels = ['eye']
             dtypes = [tf.float32]
             h, w = self._eye_image_shape
-            shapes = [(1, h, w)]
+            if self.data_format == 'NHWC':
+                shape = (h, w, 1)
+            else:
+                shape = (1, h, w)
 
             self._preprocess_queue = tf.FIFOQueue(
                     capacity=batch_size,
-                    dtypes=[tf.float32], shapes=shapes,
+                    dtypes=[tf.float32], shapes=[shape],
             )
-            self._tensors_to_enqueue = dict(eye=tf.placeholder(tf.float32, shape=(1, h, w), name='eye'))
+            self._tensors_to_enqueue = dict(eye=tf.placeholder(tf.float32, shape=shape, name='eye'))
 
             self._enqueue_op = \
                 self._preprocess_queue.enqueue(tuple(self._tensors_to_enqueue.values()))
