@@ -5,7 +5,7 @@ import numpy as np
 import scipy
 import tensorflow as tf
 
-from core import BaseDataSource, BaseModel
+from core import BaseModel
 
 
 def _tf_mse(x, y):
@@ -35,7 +35,7 @@ class ELG(BaseModel):
     @property
     def identifier(self):
         """Identifier for model based on data sources and parameters."""
-        first_data_source = next(iter(self._train_data.values()))
+        first_data_source = self._train_data
         input_tensors = first_data_source.output_tensors
         if self._data_format == 'NHWC':
             _, eh, ew, _ = input_tensors['eye'].shape.as_list()
@@ -48,15 +48,8 @@ class ELG(BaseModel):
             self._hg_num_feature_maps, self._hg_num_modules,
         )
 
-    def train_loop_pre(self, current_step):
-        """Run this at beginning of training loop."""
-        # Set difficulty of training data
-        data_source = next(iter(self._train_data.values()))
-        data_source.set_difficulty(min((1. / 1e6) * current_step, 1.))
-
-    def build_model(self, data_sources: Dict[str, BaseDataSource]):
+    def build_model(self, data_source: BaseDataSource):
         """Build model."""
-        data_source = next(iter(data_sources.values()))
         input_tensors = data_source.output_tensors
         x = input_tensors['eye']
         y1 = input_tensors['heatmaps'] if 'heatmaps' in input_tensors else None
@@ -64,8 +57,6 @@ class ELG(BaseModel):
         y3 = input_tensors['radius'] if 'radius' in input_tensors else None
 
         outputs = {}
-        loss_terms = {}
-        metrics = {}
 
         with tf.variable_scope('hourglass'):
             # TODO: Find better way to specify no. landmarks
@@ -95,13 +86,7 @@ class ELG(BaseModel):
                     x, h = self._build_hourglass_after(
                         x_prev, x, do_merge=(i < (self._hg_num_modules - 1)),
                     )
-                    if y1 is not None:
-                        metrics['heatmap%d_mse' % (i + 1)] = _tf_mse(h, y1)
                     x_prev = x
-            if y1 is not None:
-                loss_terms['heatmaps_mse'] = tf.reduce_mean([
-                    metrics['heatmap%d_mse' % (i + 1)] for i in range(self._hg_num_modules)
-                ])
             x = h
             outputs['heatmaps'] = x
 
@@ -110,8 +95,6 @@ class ELG(BaseModel):
         with tf.variable_scope('upscale'):
             # Upscale since heatmaps are half-scale of original image
             x *= self._hg_first_layer_stride
-            if y2 is not None:
-                metrics['landmarks_mse'] = _tf_mse(x, y2)
             outputs['landmarks'] = x
 
         # Fully-connected layers for radius regression
@@ -123,12 +106,9 @@ class ELG(BaseModel):
             with tf.variable_scope('out'):
                 x = self._apply_fc(x, 1)
             outputs['radius'] = x
-            if y3 is not None:
-                metrics['radius_mse'] = _tf_mse(tf.reshape(x, [-1]), y3)
-                loss_terms['radius_mse'] = 1e-7 * metrics['radius_mse']
 
         # Define outputs
-        return outputs, loss_terms, metrics
+        return outputs
 
     def _apply_conv(self, tensor, num_features, kernel_size=3, stride=1):
         return tf.layers.conv2d(

@@ -21,34 +21,16 @@ class BaseModel(object):
 
     def __init__(self,
                  tensorflow_session: tf.Session,
-                 train_data: Dict[str, BaseDataSource] = {},
-                 test_data: Dict[str, BaseDataSource] = {},
+                 train_data: BaseDataSource,
                  identifier: str = None):
         """Initialize model with data sources and parameters."""
         self._tensorflow_session = tensorflow_session
         self._train_data = train_data
-        self._test_data = test_data
         self._initialized = False
         self.__identifier = identifier
 
-        # Check consistency of given data sources
-        train_data_sources = list(train_data.values())
-        test_data_sources = list(test_data.values())
-        all_data_sources = train_data_sources + test_data_sources
-        first_data_source = all_data_sources.pop()
-        self._batch_size = first_data_source.batch_size
-        self._data_format = first_data_source.data_format
-        for data_source in all_data_sources:
-            if data_source.batch_size != self._batch_size:
-                raise ValueError(('Data source "%s" has anomalous batch size of %d ' +
-                                  'when detected batch size is %d.') % (data_source.short_name,
-                                                                        data_source.batch_size,
-                                                                        self._batch_size))
-            if data_source.data_format != self._data_format:
-                raise ValueError(('Data source "%s" has anomalous data_format of %s ' +
-                                  'when detected data_format is %s.') % (data_source.short_name,
-                                                                         data_source.data_format,
-                                                                         self._data_format))
+        self._data_format = self._train_data.data_format
+
         self._data_format_longer = ('channels_first' if self._data_format == 'NCHW'
                                     else 'channels_last')
 
@@ -67,7 +49,8 @@ class BaseModel(object):
             self.is_training = tf.placeholder(tf.bool)
             self.use_batch_statistics = tf.placeholder(tf.bool)
 
-        self._build_all_models()
+        self.output_tensors = self.build_model(self._train_data)
+        logger.info('Built model.')
 
     @property
     def identifier(self):
@@ -84,17 +67,7 @@ class BaseModel(object):
         return '%s/%s' % (os.path.abspath(os.path.dirname(__file__) + '/../../outputs'),
                           self.identifier)
 
-    def _build_all_models(self):
-        """Build training (GPU/CPU) and testing (CPU) streams."""
-        # Build the main model
-        output_tensors, loss_terms, metrics = self.build_model(self._train_data)
-
-        # Record important tensors
-        self.output_tensors = output_tensors
-
-        logger.info('Built model.')
-
-    def build_model(self, data_sources: Dict[str, BaseDataSource]):
+    def build_model(self, data_source: BaseDataSource):
         """Build model."""
         raise NotImplementedError('BaseModel::build_model is not yet implemented.')
 
@@ -108,8 +81,8 @@ class BaseModel(object):
             self.checkpoint.build_savers()  # Create savers
 
         # Start pre-processing routines
-        for _, datasource in self._train_data.items():
-            datasource.preprocess_data()
+        datasource = self._train_data
+        datasource.preprocess_data()
 
         # Initialize all variables
         self._tensorflow_session.run(tf.global_variables_initializer())
@@ -120,8 +93,7 @@ class BaseModel(object):
         self.initialize_if_not(training=False)
         self.checkpoint.load_all()  # Load available weights
 
-        # TODO: Make more generic by not picking first source
-        data_source = next(iter(self._train_data.values()))
+        data_source = self._train_data
         while True:
             data_source.preprocess_data()
             fetches = dict(self.output_tensors, **data_source.output_tensors)
