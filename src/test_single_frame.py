@@ -54,7 +54,7 @@ if __name__ == '__main__':
         print("Create Data source finished")
         print("Create Model")
         model = ELG(
-                    session, train_data=data_source,
+                    session, data_source=data_source,
                 )
         print("Create Model finished")
 

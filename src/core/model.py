@@ -19,29 +19,27 @@ class BaseModel(object):
 
     def __init__(self,
                  tensorflow_session: tf.Session,
-                 train_data: FramesSource,
-                 identifier: str = None):
+                 data_source: FramesSource):
         """Initialize model with data sources and parameters."""
         self._tensorflow_session = tensorflow_session
-        self._train_data = train_data
+        self._data_source = data_source
         self._initialized = False
-        self.__identifier = identifier
 
-        self._data_format = self._train_data.data_format
+        self._data_format = self._data_source.data_format
 
         self._data_format_longer = ('channels_first' if self._data_format == 'NCHW'
                                     else 'channels_last')
 
         # Make output dir
         if not os.path.isdir(self.output_path):
-            os.makedirs(self.output_path)
+            raise ValueError(f"model weights not found at {self.output_path}")
 
         # Run-time parameters
         with tf.variable_scope('learning_params'):
             self.is_training = tf.placeholder(tf.bool)
             self.use_batch_statistics = tf.placeholder(tf.bool)
 
-        self.output_tensors = self.build_model(self._train_data)
+        self.output_tensors = self.build_model(self._data_source)
         logger.info('Built model.')
         self.initialize()
         logger.info('Initialized model.')
@@ -74,8 +72,7 @@ class BaseModel(object):
             checkpoint.build_savers()  # Create savers
 
         # Start pre-processing routines
-        datasource = self._train_data
-        datasource.preprocess_data()
+        self._data_source.preprocess_data()
 
         # Initialize all variables
         self._tensorflow_session.run(tf.global_variables_initializer())
@@ -84,10 +81,9 @@ class BaseModel(object):
 
     def inference_generator(self):
         """Perform inference on test data and yield a batch of output."""
-        data_source = self._train_data
         while True:
-            data_source.preprocess_data()
-            fetches = dict(self.output_tensors, **data_source.output_tensors)
+            self._data_source.preprocess_data()
+            fetches = dict(self.output_tensors, **self._data_source.output_tensors)
             start_time = time.time()
             outputs = self._tensorflow_session.run(
                 fetches=fetches,
