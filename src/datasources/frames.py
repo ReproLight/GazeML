@@ -10,7 +10,6 @@ import os
 from urllib.request import urlopen
 
 from collections import OrderedDict
-import multiprocessing
 
 import cv2 as cv
 import numpy as np
@@ -26,11 +25,7 @@ class FramesSource(object):
                  tensorflow_session: tf.compat.v1.Session,
                  batch_size: int,
                  eye_image_shape: Tuple[int, int],
-                 staging: bool=False,
                  data_format: str = 'NHWC',
-                 num_threads: int = 1,
-                 min_after_dequeue: int = 1000,
-                 fread_queue_capacity: int = 0,
                  **kwargs):
         """Create queues and threads to read and preprocess data."""
         self._eye_image_shape = eye_image_shape
@@ -48,33 +43,24 @@ class FramesSource(object):
         self._frames = {}
         self._open = True
 
-        num_threads = 1
-        fread_queue_capacity = batch_size
         preprocess_queue_capacity = batch_size
 
         assert tensorflow_session is not None and isinstance(tensorflow_session, tf.compat.v1.Session)
         assert isinstance(batch_size, int) and batch_size > 0
-        self.staging = staging
         self.data_format = data_format.upper()
         assert self.data_format == 'NHWC' or self.data_format == 'NCHW'
         self.batch_size = batch_size
-        self.num_threads = num_threads
         self._tensorflow_session = tensorflow_session
         self._coordinator = tf.train.Coordinator()
         self.all_threads = []
 
         # Setup file read queue
-        self._fread_queue_capacity = fread_queue_capacity
-        if self._fread_queue_capacity == 0:
-            self._fread_queue_capacity = (num_threads + 1) * batch_size
-        self._fread_queue = queue.Queue(maxsize=self._fread_queue_capacity)
+        self._fread_queue = queue.Queue(maxsize=batch_size)
 
         with tf.compat.v1.variable_scope(''.join(c for c in self.short_name if c.isalnum())):
             # Setup preprocess queue
             labels, dtypes, shapes = self._determine_dtypes_and_shapes()
-            self._preprocess_queue_capacity = (min_after_dequeue + (num_threads + 1) * batch_size
-                                               if preprocess_queue_capacity == 0
-                                               else preprocess_queue_capacity)
+            self._preprocess_queue_capacity = preprocess_queue_capacity
             self._preprocess_queue = tf.FIFOQueue(
                     capacity=self._preprocess_queue_capacity,
                     dtypes=dtypes, shapes=shapes,
@@ -91,27 +77,13 @@ class FramesSource(object):
             self._preprocess_queue_size_op = self._preprocess_queue.size()
             self._preprocess_queue_clear_op = \
                 self._preprocess_queue.dequeue_up_to(self._preprocess_queue.size())
-            if not staging:
-                output_tensors = self._preprocess_queue.dequeue_many(self.batch_size)
-                if not isinstance(output_tensors, list):
-                    output_tensors = [output_tensors]
-                self._output_tensors = dict([
-                    (label, tensor) for label, tensor in zip(labels, output_tensors)
-                ])
-            else:
-                # Setup on-GPU staging area
-                self._staging_area = tf.contrib.staging.StagingArea(
-                    dtypes=dtypes,
-                    shapes=[tuple([batch_size] + list(shape)) for shape in shapes],
-                    capacity=1,  # This does not have to be high
-                )
-                self._staging_area_put_op = \
-                    self._staging_area.put(self._preprocess_queue.dequeue_many(batch_size))
-                self._staging_area_clear_op = self._staging_area.clear()
 
-                self._output_tensors = dict([
-                    (label, tensor) for label, tensor in zip(labels, self._staging_area.get())
-                ])
+            output_tensors = self._preprocess_queue.dequeue_many(self.batch_size)
+            if not isinstance(output_tensors, list):
+                output_tensors = [output_tensors]
+            self._output_tensors = dict([
+                (label, tensor) for label, tensor in zip(labels, output_tensors)
+            ])
 
         logger.info('Initialized data source: "%s"' % self.short_name)
 
@@ -145,11 +117,9 @@ class FramesSource(object):
             time.sleep(0.1)
 
         # Push data through to trigger exits in preprocess/transfer threads
-        for _ in range(self.batch_size * self.num_threads):
+        for _ in range(self.batch_size):
             self._fread_queue.put(None)
         self._tensorflow_session.run(self._preprocess_queue_close_op)
-        if self.staging:
-            self._tensorflow_session.run(self._staging_area_clear_op)
 
         self._coordinator.join(self.all_threads, stop_grace_period_secs=5)
         self.__cleaned_up = True
@@ -217,18 +187,12 @@ class FramesSource(object):
             thread.daemon = True
             self.all_threads.append(thread)
 
-        for i in range(self.num_threads):
-            # File read thread
-            _create_and_register_thread(target=self.read_entry_job, name='fread_%s_%d' % (name, i))
+        # File read thread
+        _create_and_register_thread(target=self.read_entry_job, name='fread_%s_%d' % (name, 0))
 
-            # Preprocess thread
-            _create_and_register_thread(target=self.preprocess_job,
-                                        name='preprocess_%s_%d' % (name, i))
-
-        if self.staging:
-            # Send-to-GPU thread
-            _create_and_register_thread(target=self.transfer_to_gpu_job,
-                                        name='transfer_%s_%d' % (name, i))
+        # Preprocess thread
+        _create_and_register_thread(target=self.preprocess_job,
+                                    name='preprocess_%s_%d' % (name, 0))
 
     def start_threads(self):
         """Begin executing all created threads."""
