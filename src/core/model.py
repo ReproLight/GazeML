@@ -1,10 +1,8 @@
 """Base model class for Tensorflow-based model construction."""
-from .data_source import BaseDataSource
+from datasources import FramesSource
 import os
 import time
-from typing import Any, Dict, List
 
-import numpy as np
 import tensorflow as tf
 
 from .checkpoint_manager import CheckpointManager
@@ -21,7 +19,7 @@ class BaseModel(object):
 
     def __init__(self,
                  tensorflow_session: tf.Session,
-                 train_data: BaseDataSource,
+                 train_data: FramesSource,
                  identifier: str = None):
         """Initialize model with data sources and parameters."""
         self._tensorflow_session = tensorflow_session
@@ -37,9 +35,6 @@ class BaseModel(object):
         # Make output dir
         if not os.path.isdir(self.output_path):
             os.makedirs(self.output_path)
-
-        # Log messages to file
-        root_logger = logging.getLogger()
 
         # Register a manager for checkpoints
         self.checkpoint = CheckpointManager(self)
@@ -57,17 +52,12 @@ class BaseModel(object):
         raise NotImplementedError
 
     @property
-    def _identifier_suffix(self):
-        """Identifier suffix for model based on data sources and parameters."""
-        return ''
-
-    @property
     def output_path(self):
         """Path to store logs and model weights into."""
         return '%s/%s' % (os.path.abspath(os.path.dirname(__file__) + '/../../outputs'),
                           self.identifier)
 
-    def build_model(self, data_source: BaseDataSource):
+    def build_model(self, data_source: FramesSource):
         """Build model."""
         raise NotImplementedError('BaseModel::build_model is not yet implemented.')
 

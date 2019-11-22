@@ -6,6 +6,7 @@ import scipy
 import tensorflow as tf
 
 from core import BaseModel
+from datasources import FramesSource
 
 
 def _tf_mse(x, y):
@@ -48,7 +49,7 @@ class ELG(BaseModel):
             self._hg_num_feature_maps, self._hg_num_modules,
         )
 
-    def build_model(self, data_source: BaseDataSource):
+    def build_model(self, data_source: FramesSource):
         """Build model."""
         input_tensors = data_source.output_tensors
         x = input_tensors['eye']
