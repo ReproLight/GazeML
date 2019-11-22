@@ -1,16 +1,12 @@
 """Base model class for Tensorflow-based model construction."""
 from .data_source import BaseDataSource
 import os
-import sys
 import time
 from typing import Any, Dict, List
 
 import numpy as np
 import tensorflow as tf
 
-from .live_tester import LiveTester
-from .time_manager import TimeManager
-from .summary_manager import SummaryManager
 from .checkpoint_manager import CheckpointManager
 import logging
 logger = logging.getLogger(__name__)
@@ -28,14 +24,11 @@ class BaseModel(object):
                  learning_schedule: List[Dict[str, Any]] = [],
                  train_data: Dict[str, BaseDataSource] = {},
                  test_data: Dict[str, BaseDataSource] = {},
-                 test_losses_or_metrics: str = None,
-                 use_batch_statistics_at_test: bool = True,
                  identifier: str = None):
         """Initialize model with data sources and parameters."""
         self._tensorflow_session = tensorflow_session
         self._train_data = train_data
         self._test_data = test_data
-        self._test_losses_or_metrics = test_losses_or_metrics
         self._initialized = False
         self.__identifier = identifier
 
@@ -76,18 +69,8 @@ class BaseModel(object):
             root_logger.removeHandler(handler)
         root_logger.addHandler(file_handler)
 
-        # Register a manager for tf.Summary
-        self.summary = SummaryManager(self)
-
         # Register a manager for checkpoints
         self.checkpoint = CheckpointManager(self)
-
-        # Register a manager for timing related operations
-        self.time = TimeManager(self)
-
-        # Prepare for live (concurrent) validation/testing during training, on the CPU
-        self._enable_live_testing = (len(self._train_data) > 0) and (len(self._test_data) > 0)
-        self._tester = LiveTester(self, self._test_data, use_batch_statistics_at_test)
 
         # Run-time parameters
         with tf.variable_scope('learning_params'):
@@ -107,7 +90,6 @@ class BaseModel(object):
         all_data_sources = train_data_sources + test_data_sources
         for data_source in all_data_sources:
             data_source.cleanup()
-        self._tester.__del__()
 
     __identifier_stem = None
 
@@ -137,29 +119,6 @@ class BaseModel(object):
         self.loss_terms = {}
         self.metrics = {}
 
-        def _build_datasource_summaries(data_sources, mode):
-            """Register summary operations for input data from given data sources."""
-            with tf.variable_scope('%s_data' % mode):
-                for data_source_name, data_source in data_sources.items():
-                    tensors = data_source.output_tensors
-                    for key, tensor in tensors.items():
-                        summary_name = '%s/%s' % (data_source_name, key)
-                        shape = tensor.shape.as_list()
-                        num_dims = len(shape)
-                        if num_dims == 4:  # Image data
-                            if shape[1] == 1 or shape[1] == 3:
-                                self.summary.image(summary_name, tensor,
-                                                   data_format='channels_first')
-                            elif shape[3] == 1 or shape[3] == 3:
-                                self.summary.image(summary_name, tensor,
-                                                   data_format='channels_last')
-                            # TODO: fix issue with no summary otherwise
-                        elif num_dims == 2:
-                            self.summary.histogram(summary_name, tensor)
-                        else:
-                            logger.debug('I do not know how to create a summary for %s (%s)' %
-                                         (summary_name, tensor.shape.as_list()))
-
         def _build_train_or_test(mode):
             data_sources = self._train_data if mode == 'train' else self._test_data
 
@@ -171,16 +130,8 @@ class BaseModel(object):
             self.loss_terms[mode] = loss_terms
             self.metrics[mode] = metrics
 
-            # Create summaries for scalars
-            if mode == 'train':
-                for name, loss_term in loss_terms.items():
-                    self.summary.scalar('loss/%s/%s' % (mode, name), loss_term)
-                for name, metric in metrics.items():
-                    self.summary.scalar('metric/%s/%s' % (mode, name), metric)
-
         # Build the main model
         if len(self._train_data) > 0:
-            _build_datasource_summaries(self._train_data, mode='train')
             _build_train_or_test(mode='train')
             logger.info('Built model.')
 
@@ -203,13 +154,9 @@ class BaseModel(object):
         # If there are any test data streams, build same model with different scope
         # Trainable parameters will be copied at test time
         if len(self._test_data) > 0:
-            _build_datasource_summaries(self._test_data, mode='test')
             with tf.variable_scope('test'):
                 _build_train_or_test(mode='test')
             logger.info('Built model for live testing.')
-
-        if self._enable_live_testing:
-            self._tester._post_model_build()  # Create copy ops to be run before every test run
 
     def build_model(self, data_sources: Dict[str, BaseDataSource], mode: str):
         """Build model."""

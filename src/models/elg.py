@@ -63,11 +63,6 @@ class ELG(BaseModel):
         y2 = input_tensors['landmarks'] if 'landmarks' in input_tensors else None
         y3 = input_tensors['radius'] if 'radius' in input_tensors else None
 
-        with tf.variable_scope('input_data'):
-            self.summary.feature_maps('eyes', x, data_format=self._data_format_longer)
-            if y1 is not None:
-                self.summary.feature_maps('hmaps_true', y1, data_format=self._data_format_longer)
-
         outputs = {}
         loss_terms = {}
         metrics = {}
@@ -100,7 +95,6 @@ class ELG(BaseModel):
                     x, h = self._build_hourglass_after(
                         x_prev, x, do_merge=(i < (self._hg_num_modules - 1)),
                     )
-                    self.summary.feature_maps('hmap%d' % i, h, data_format=self._data_format_longer)
                     if y1 is not None:
                         metrics['heatmap%d_mse' % (i + 1)] = _tf_mse(h, y1)
                     x_prev = x
@@ -132,7 +126,6 @@ class ELG(BaseModel):
             if y3 is not None:
                 metrics['radius_mse'] = _tf_mse(tf.reshape(x, [-1]), y3)
                 loss_terms['radius_mse'] = 1e-7 * metrics['radius_mse']
-            self.summary.histogram('radius', x)
 
         # Define outputs
         return outputs, loss_terms, metrics
