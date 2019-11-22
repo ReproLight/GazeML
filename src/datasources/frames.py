@@ -26,10 +26,7 @@ class FramesSource(object):
     """Preprocessing of stream of frames."""
 
     def __init__(self,
-                 tensorflow_session: tf.compat.v1.Session,
-                 batch_size: int,
                  eye_image_shape: Tuple[int, int],
-                 data_format: str = 'NHWC',
                  **kwargs):
         """Create queues and threads to read and preprocess data."""
 
@@ -40,19 +37,6 @@ class FramesSource(object):
 
         self.frame = image
         self._eye_image_shape = eye_image_shape
-
-        assert tensorflow_session is not None and isinstance(tensorflow_session, tf.compat.v1.Session)
-        assert isinstance(batch_size, int) and batch_size > 0
-        self.data_format = data_format.upper()
-        assert self.data_format == 'NHWC' or self.data_format == 'NCHW'
-        self.batch_size = batch_size
-        self._tensorflow_session = tensorflow_session
-
-        h, w = self._eye_image_shape
-        if self.data_format == 'NHWC':
-            self.input_shape = (h, w, 1)
-        else:
-            self.input_shape = (1, h, w)
 
         logger.info('Initialized data source: "%s"' % self.short_name)
 
@@ -105,7 +89,6 @@ class FramesSource(object):
         eye = eye.astype(np.float32)
         eye *= 2.0 / 255.0
         eye -= 1.0
-        eye = np.expand_dims(eye, -1 if self.data_format == 'NHWC' else 0)
         return eye
 
     def detect_faces(self, frame):

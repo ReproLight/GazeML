@@ -47,14 +47,14 @@ if __name__ == '__main__':
         # Change data_format='NHWC' if not using CUDA
 
         print("Create Data source")
-        data_source = FramesSource(tensorflow_session=session, batch_size=batch_size,
-                                data_format='NCHW' if gpu_available else 'NHWC',
-                                eye_image_shape=(36, 60))
+        data_source = FramesSource(eye_image_shape=(36, 60))
 
         print("Create Data source finished")
         print("Create Model")
         model = ELG(
                     session, data_source=data_source,
+                    data_format='NCHW' if gpu_available else 'NHWC',
+                    batch_size = batch_size
                 )
         print("Create Model finished")
 

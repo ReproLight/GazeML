@@ -46,7 +46,7 @@ class ELG(BaseModel):
 
     def build_model(self):
         """Build model."""
-        input_tensors = self._preprocess_queue.dequeue_many(self._data_source.batch_size)
+        input_tensors = self._preprocess_queue.dequeue_many(self.batch_size)
         x = input_tensors
 
         outputs = {}
@@ -136,7 +136,7 @@ class ELG(BaseModel):
             tensor,
             scale=True,
             center=True,
-            is_training=self.use_batch_statistics,
+            is_training=True,
             trainable=True,
             data_format=self._data_format,
             updates_collections=None,

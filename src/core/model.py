@@ -4,6 +4,7 @@ import os
 import time
 
 import tensorflow as tf
+import numpy as np
 
 from .checkpoint_manager import CheckpointManager
 import logging
@@ -19,33 +20,38 @@ class BaseModel(object):
 
     def __init__(self,
                  tensorflow_session: tf.Session,
-                 data_source: FramesSource):
+                 data_source: FramesSource,
+                 data_format: str = 'NHWC',
+                 batch_size: int = 1):
         """Initialize model with data sources and parameters."""
         self._tensorflow_session = tensorflow_session
         self._data_source = data_source
+        self.batch_size = batch_size
         self._initialized = False
 
-        self._data_format = self._data_source.data_format
-
+        self._data_format = data_format
+        self.data_format = data_format.upper()
+        assert self.data_format == 'NHWC' or self.data_format == 'NCHW'
         self._data_format_longer = ('channels_first' if self._data_format == 'NCHW'
                                     else 'channels_last')
+
+        h, w = self._data_source._eye_image_shape
+        if self.data_format == 'NHWC':
+            self.input_shape = (h, w, 1)
+        else:
+            self.input_shape = (1, h, w)
 
         # Make output dir
         if not os.path.isdir(self.output_path):
             raise ValueError(f"model weights not found at {self.output_path}")
 
-        # Run-time parameters
-        with tf.variable_scope('learning_params'):
-            self.is_training = tf.placeholder(tf.bool)
-            self.use_batch_statistics = tf.placeholder(tf.bool)
-
         with tf.compat.v1.variable_scope("SingleFrame"):
             # Setup preprocess queue
             self._preprocess_queue = tf.FIFOQueue(
-                    capacity=self._data_source.batch_size,
-                    dtypes=[tf.float32], shapes=[self._data_source.input_shape],
+                    capacity=self.batch_size,
+                    dtypes=[tf.float32], shapes=[self.input_shape],
             )
-            self.input_tensor = tf.placeholder(tf.float32, shape=self._data_source.input_shape, name='eye')
+            self.input_tensor = tf.placeholder(tf.float32, shape=self.input_shape, name='eye')
 
         self.output_tensors = self.build_model()
         logger.info('Built model.')
@@ -87,15 +93,12 @@ class BaseModel(object):
     def inference(self):
         """Perform inference on test data and yield a batch of output."""
         eye = self._data_source.preprocess_data()
+        eye = np.expand_dims(eye, -1 if self._data_format == 'NHWC' else 0)
         self._tensorflow_session.run(self._preprocess_queue.enqueue([self.input_tensor]),
                                      feed_dict={self.input_tensor: eye})
         start_time = time.time()
         outputs = self._tensorflow_session.run(
             fetches=self.output_tensors,
-            feed_dict={
-                self.is_training: False,
-                self.use_batch_statistics: True,
-            },
         )
         outputs['inference_time'] = time.time() - start_time
         return outputs
