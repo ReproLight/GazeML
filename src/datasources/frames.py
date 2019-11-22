@@ -41,14 +41,7 @@ class FramesSource(object):
         self.frame = image
         self._eye_image_shape = eye_image_shape
         self._proc_mutex = threading.Lock()
-        self._read_mutex = threading.Lock()
 
-        self._frame_read_queue = queue.Queue(maxsize=1)
-        self._frame_read_thread = threading.Thread(target=self.frame_read_job, name='frame_read')
-        self._frame_read_thread.daemon = True
-        self._frame_read_thread.start()
-
-        self._current_index = 0
         self._last_frame_index = 0
         self._indices = []
         self._frames = {}
@@ -108,11 +101,6 @@ class FramesSource(object):
         """Force-close all threads."""
         if self.__cleaned_up:
             return
-
-        # Clear queues
-        fread_threads = [t for t in self.all_threads if t.name.startswith('fread_')]
-        preprocess_threads = [t for t in self.all_threads if t.name.startswith('preprocess_')]
-        transfer_threads = [t for t in self.all_threads if t.name.startswith('transfer_')]
 
         self._coordinator.request_stop()
 
@@ -185,15 +173,6 @@ class FramesSource(object):
                     break
         logger.debug('Exiting thread %s' % threading.current_thread().name)
 
-    def transfer_to_gpu_job(self):
-        """Transfer a data entry from CPU memory to GPU memory."""
-        while not self._coordinator.should_stop():
-            try:
-                self._tensorflow_session.run(self._staging_area_put_op)
-            except tf.errors.CancelledError or tf.errors.OutOfRangeError:
-                break
-        logger.debug('Exiting thread %s' % threading.current_thread().name)
-
     def create_threads(self):
         """Create Python threads for multi-threaded read and preprocess jobs."""
         name = self.short_name
@@ -231,19 +210,6 @@ class FramesSource(object):
     def short_name(self):
         """Short name specifying source."""
         return self._short_name
-
-    def frame_read_job(self):
-        """Read frame from webcam."""
-        generate_frame = self.frame_generator()
-        while True:
-            before_frame_read = time.time()
-            bgr = next(generate_frame)
-            if bgr is not None:
-                after_frame_read = time.time()
-                with self._read_mutex:
-                    self._frame_read_queue.queue.clear()
-                    self._frame_read_queue.put_nowait((before_frame_read, bgr, after_frame_read))
-        self._open = False
 
     def entry_generator(self, yield_just_one=False):
         """Generate eye image entries by detecting faces and facial landmarks."""
