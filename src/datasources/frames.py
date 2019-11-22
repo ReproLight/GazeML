@@ -41,9 +41,6 @@ class FramesSource(object):
         self.frame = image
         self._eye_image_shape = eye_image_shape
 
-        self._last_frame_index = 0
-        self._open = True
-
         assert tensorflow_session is not None and isinstance(tensorflow_session, tf.compat.v1.Session)
         assert isinstance(batch_size, int) and batch_size > 0
         self.data_format = data_format.upper()
@@ -86,13 +83,9 @@ class FramesSource(object):
 
     def _determine_dtypes_and_shapes(self):
         """Determine the dtypes and shapes of Tensorflow queue and staging area entries."""
-        while True:
-            raw_entry = next(self.entry_generator())
-            if raw_entry is None:
-                continue
-            preprocessed_entry_dict = self.preprocess_entry(raw_entry)
-            if preprocessed_entry_dict is not None:
-                break
+        raw_entry = next(self.entry_generator())
+        preprocessed_entry_dict = self.preprocess_entry(raw_entry)
+
         labels, values = zip(*list(preprocessed_entry_dict.items()))
         dtypes = [value.dtype for value in values]
         shapes = [value.shape for value in values]
@@ -125,12 +118,9 @@ class FramesSource(object):
         # Grab frame
         bgr = self.frame
         bgr = cv.flip(bgr, flipCode=1)  # Mirror
-        current_index = self._last_frame_index + 1
-        self._last_frame_index = current_index
 
         grey = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY)
         frame = {
-            'frame_index': current_index,
             'time': {
                 'before_frame_read': 0,
                 'after_frame_read': 0,
@@ -147,7 +137,7 @@ class FramesSource(object):
 
         for i, eye_dict in enumerate(frame['eyes']):
             yield {
-                'frame_index': np.int64(current_index),
+                'frame_index': np.int64(0),
                 'eye': eye_dict['image'],
                 'eye_index': np.uint8(i),
             }
@@ -165,8 +155,6 @@ class FramesSource(object):
 
     def detect_faces(self, frame):
         """Detect all faces in a frame."""
-        frame_index = frame['frame_index']
-
         detector = get_face_detector()
         if detector.__class__.__name__ == 'CascadeClassifier':
             detections = detector.detectMultiScale(frame['grey'])
@@ -186,7 +174,6 @@ class FramesSource(object):
             faces.append((l, t, w, h))
         faces.sort(key=lambda bbox: bbox[0])
         frame['faces'] = faces
-        frame['last_face_detect_index'] = frame['frame_index']
 
     def detect_landmarks_68(self, frame):
         """Detect 68-point facial landmarks for faces in frame."""
