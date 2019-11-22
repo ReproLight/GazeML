@@ -76,31 +76,14 @@ class BaseModel(object):
         with tf.variable_scope('learning_params'):
             self.is_training = tf.placeholder(tf.bool)
             self.use_batch_statistics = tf.placeholder(tf.bool)
-            self.learning_rate_multiplier = tf.Variable(1.0, trainable=False, dtype=tf.float32)
-            self.learning_rate_multiplier_placeholder = tf.placeholder(dtype=tf.float32)
-            self.assign_learning_rate_multiplier = \
-                tf.assign(self.learning_rate_multiplier, self.learning_rate_multiplier_placeholder)
 
         self._build_all_models()
-
-    def __del__(self):
-        """Explicitly call methods to cleanup any live threads."""
-        train_data_sources = list(self._train_data.values())
-        test_data_sources = list(self._test_data.values())
-        all_data_sources = train_data_sources + test_data_sources
-        for data_source in all_data_sources:
-            data_source.cleanup()
 
     __identifier_stem = None
 
     @property
     def identifier(self):
-        """Identifier for model based on time."""
-        if self.__identifier is not None:  # If loading from checkpoints or having naming enforced
-            return self.__identifier
-        if self.__identifier_stem is None:
-            self.__identifier_stem = self.__class__.__name__ + '/' + time.strftime('%y%m%d%H%M%S')
-        return self.__identifier_stem + self._identifier_suffix
+        raise NotImplementedError
 
     @property
     def _identifier_suffix(self):
