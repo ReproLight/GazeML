@@ -5,7 +5,7 @@ import numpy as np
 import scipy
 import tensorflow as tf
 
-from core import BaseModel
+from core import GazeModel
 from datasources import FramesSource
 
 
@@ -14,7 +14,7 @@ def _tf_mse(x, y):
     return tf.reduce_mean(tf.squared_difference(x, y))
 
 
-class ELG(BaseModel):
+class ELG(GazeModel):
     """ELG architecture as introduced in [Park et al. ETRA'18]."""
 
     def __init__(self, tensorflow_session=None, first_layer_stride=1,
@@ -22,14 +22,14 @@ class ELG(BaseModel):
         """Specify ELG-specific parameters."""
         self._hg_first_layer_stride = first_layer_stride
         self._hg_num_modules = num_modules
-        self._hg_num_feature_maps= num_feature_maps
+        self._hg_num_feature_maps = num_feature_maps
 
         # Call parent class constructor
         super().__init__(tensorflow_session, **kwargs)
 
-    _hg_first_layer_stride = 1
-    _hg_num_modules = 2
-    _hg_num_feature_maps = 32
+    #_hg_first_layer_stride = 1
+    #_hg_num_modules = 2
+    #_hg_num_feature_maps = 32
     _hg_num_landmarks = 18
     _hg_num_residual_blocks = 1
 

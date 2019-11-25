@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class BaseModel(object):
+class GazeModel(object):
     """Base model class for Tensorflow-based model construction.
 
     This class assumes that there exist no other Tensorflow models defined.

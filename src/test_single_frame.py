@@ -42,20 +42,35 @@ if __name__ == '__main__':
 
         # Declare some parameters
         batch_size = 1
+        big_model = False
 
         # Define frame data source
         # Change data_format='NHWC' if not using CUDA
 
         print("Create Data source")
-        data_source = FramesSource(eye_image_shape=(36, 60))
+        if big_model:
+            data_source = FramesSource(eye_image_shape=(108, 180))
+        else:
+            data_source = FramesSource(eye_image_shape=(36, 60))
 
         print("Create Data source finished")
         print("Create Model")
-        model = ELG(
-                    session, data_source=data_source,
-                    data_format='NCHW' if gpu_available else 'NHWC',
-                    batch_size = batch_size
-                )
+        if big_model:
+            model = ELG(
+                session, data_source=data_source,
+                data_format='NCHW' if gpu_available else 'NHWC',
+                batch_size=batch_size,
+                first_layer_stride=3,
+                num_modules=3,
+                num_feature_maps=64,
+            )
+        else:
+            model = ELG(
+                        session, data_source=data_source,
+                        data_format='NCHW' if gpu_available else 'NHWC',
+                        batch_size=batch_size
+                    )
+
         print("Create Model finished")
 
         print ("Start inference")

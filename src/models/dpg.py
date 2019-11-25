@@ -5,12 +5,12 @@ import numpy as np
 import scipy
 import tensorflow as tf
 
-from core import BaseDataSource, BaseModel
+from core import BaseDataSource, GazeModel
 from datasources import UnityEyes
 import util.gaze
 
 
-class DPG(BaseModel):
+class DPG(GazeModel):
     """Deep Pictorial Gaze architecture as introduced in [Park et al. ECCV'18]."""
 
     def __init__(self, tensorflow_session=None, first_layer_stride=2, num_modules=3,
