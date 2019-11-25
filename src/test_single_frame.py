@@ -44,9 +44,6 @@ if __name__ == '__main__':
         batch_size = 1
         big_model = False
 
-        # Define frame data source
-        # Change data_format='NHWC' if not using CUDA
-
         print("Create Data source")
         if big_model:
             data_source = FramesSource(eye_image_shape=(108, 180))

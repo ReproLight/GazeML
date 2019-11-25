@@ -66,19 +66,14 @@ class FramesSource(object):
 
         grey = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY)
         frame = {
-            'time': {
-                'before_frame_read': 0,
-                'after_frame_read': 0,
-            },
             'bgr': bgr,
             'grey': grey,
         }
 
         # Eye image segmentation pipeline
-        self.detect_faces(frame)
-        self.detect_landmarks(frame)
-        self.segment_eyes(frame)
-        frame['time']['after_preprocessing'] = time.time()
+        frame['faces'] = self.detect_faces(frame)
+        frame['landmarks'] = self.detect_landmarks(frame)
+        frame['eyes'] = self.segment_eyes(frame)
 
         for eye_dict in frame['eyes']:
             yield eye_dict['image']
@@ -111,7 +106,7 @@ class FramesSource(object):
                 l, t, w, h = d
             faces.append((l, t, w, h))
         faces.sort(key=lambda bbox: bbox[0])
-        frame['faces'] = faces
+        return faces
 
     def detect_landmarks_68(self, frame):
         """Detect 68-point facial landmarks for faces in frame."""
@@ -135,7 +130,7 @@ class FramesSource(object):
                                [landmarks[27]] + \
                                [landmarks[42]] + \
                                [landmarks[45]]
-        frame['landmarks'] = five_point_landmarks
+        return five_point_landmarks
 
 
     def detect_landmarks(self, frame):
@@ -149,11 +144,11 @@ class FramesSource(object):
 
             def tuple_from_dlib_shape(index):
                 p = landmarks_dlib.part(index)
-                return (p.x, p.y)
+                return p.x, p.y
 
             num_landmarks = landmarks_dlib.num_parts
             landmarks.append(np.array([tuple_from_dlib_shape(i) for i in range(num_landmarks)]))
-        frame['landmarks'] = landmarks
+        return landmarks
 
     def segment_eyes(self, frame):
         """From found landmarks in previous steps, segment eye image."""
@@ -218,7 +213,7 @@ class FramesSource(object):
                     'inv_landmarks_transform_mat': inv_transform_mat,
                     'side': 'left' if is_left else 'right',
                 })
-        frame['eyes'] = eyes
+        return eyes
 
 _face_detector = None
 _landmarks_predictor = None
