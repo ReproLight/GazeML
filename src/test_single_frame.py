@@ -18,7 +18,6 @@ from models import ELG
 import util.gaze
 
 
-
 if __name__ == '__main__':
     coloredlogs.install(
         datefmt='%d/%m %H:%M',
@@ -46,32 +45,37 @@ if __name__ == '__main__':
 
         print("Create Data source")
         if big_model:
-            data_source = FramesSource(eye_image_shape=(108, 180))
+            eye_image_shape = (108, 180)
+            data_source = FramesSource(eye_image_shape=eye_image_shape)
         else:
-            data_source = FramesSource(eye_image_shape=(36, 60))
+            eye_image_shape = (36, 60)
+            data_source = FramesSource(eye_image_shape=eye_image_shape)
 
         print("Create Data source finished")
         print("Create Model")
         if big_model:
             model = ELG(
-                session, data_source=data_source,
+                session,
                 data_format='NCHW' if gpu_available else 'NHWC',
                 batch_size=batch_size,
                 first_layer_stride=3,
                 num_modules=3,
                 num_feature_maps=64,
+                eye_image_shape=eye_image_shape
             )
         else:
             model = ELG(
-                        session, data_source=data_source,
+                        session,
                         data_format='NCHW' if gpu_available else 'NHWC',
-                        batch_size=batch_size
+                        batch_size=batch_size,
+                        eye_image_shape=eye_image_shape
                     )
 
         print("Create Model finished")
 
-        print ("Start inference")
-        output = model.inference()
+        print("Start inference")
+        eyes = data_source.entry_generator()
+        output = model.inference(eyes)
         print("inference finished")
         print("Print output:")
         print(output)

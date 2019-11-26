@@ -20,12 +20,12 @@ class GazeModel(object):
 
     def __init__(self,
                  tensorflow_session: tf.Session,
-                 data_source: FramesSource,
                  data_format: str = 'NHWC',
-                 batch_size: int = 1):
+                 batch_size: int = 1,
+                 eye_image_shape=(36, 60)):
         """Initialize model with data sources and parameters."""
+        self._eye_image_shape = eye_image_shape
         self._tensorflow_session = tensorflow_session
-        self._data_source = data_source
         self.batch_size = batch_size
         self._initialized = False
 
@@ -35,7 +35,7 @@ class GazeModel(object):
         self._data_format_longer = ('channels_first' if self._data_format == 'NCHW'
                                     else 'channels_last')
 
-        h, w = self._data_source._eye_image_shape
+        h, w = self._eye_image_shape
         if self.data_format == 'NHWC':
             self.input_shape = (h, w, 1)
         else:
@@ -90,9 +90,9 @@ class GazeModel(object):
         checkpoint.load_all()
         self._initialized = True
 
-    def inference(self):
+    def inference(self, eyes):
         """Perform inference on test data and yield a batch of output."""
-        for eye in self._data_source.preprocess_data():
+        for eye in eyes:
             eye = np.expand_dims(eye, -1 if self._data_format == 'NHWC' else 0)
             self._tensorflow_session.run(self._preprocess_queue.enqueue([self.input_tensor]),
                                          feed_dict={self.input_tensor: eye})

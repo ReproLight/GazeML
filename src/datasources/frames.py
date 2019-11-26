@@ -40,15 +40,10 @@ class FramesSource(object):
 
         logger.info('Initialized data source: "%s"' % self.short_name)
 
-
     _short_name = 'SingleFrame'
 
     def set_frame(self, frame):
         self.frame = frame
-
-    def preprocess_data(self):
-        preprocessed_eyes = [self.preprocess_entry(eye) for eye in self.entry_generator()]
-        return preprocessed_eyes
 
     @property
     def short_name(self):
@@ -73,7 +68,8 @@ class FramesSource(object):
         frame['eyes'] = self.segment_eyes(frame)
 
         eyes = [entry['image'] for entry in frame['eyes']]
-        return eyes
+        preprocessed_eyes = [self.preprocess_entry(eye) for eye in eyes]
+        return preprocessed_eyes
 
     def preprocess_entry(self, eye):
         """Preprocess segmented eye images for use as neural network input."""

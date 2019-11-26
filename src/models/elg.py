@@ -18,7 +18,8 @@ class ELG(GazeModel):
     """ELG architecture as introduced in [Park et al. ETRA'18]."""
 
     def __init__(self, tensorflow_session=None, first_layer_stride=1,
-                 num_modules=2, num_feature_maps=32, **kwargs):
+                 num_modules=2, num_feature_maps=32,
+                 **kwargs):
         """Specify ELG-specific parameters."""
         self._hg_first_layer_stride = first_layer_stride
         self._hg_num_modules = num_modules
@@ -36,7 +37,7 @@ class ELG(GazeModel):
     @property
     def identifier(self):
         """Identifier for model based on data sources and parameters."""
-        eh, ew = self._data_source._eye_image_shape
+        eh, ew = self._eye_image_shape
         return 'ELG_i%dx%d_f%dx%d_n%d_m%d' % (
             ew, eh,
             int(ew / self._hg_first_layer_stride),
