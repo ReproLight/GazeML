@@ -41,7 +41,7 @@ if __name__ == '__main__':
     with tf.Session(config=session_config) as session:
 
         # Declare some parameters
-        batch_size = 1
+        batch_size = 2
         big_model = False
 
         print("Create Data source")

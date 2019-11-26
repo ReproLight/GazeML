@@ -47,11 +47,8 @@ class FramesSource(object):
         self.frame = frame
 
     def preprocess_data(self):
-        read_entry = self.entry_generator()
-        entry = next(read_entry)
-
-        preprocessed_eye = self.preprocess_entry(entry)
-        return preprocessed_eye
+        preprocessed_eyes = [self.preprocess_entry(eye) for eye in self.entry_generator()]
+        return preprocessed_eyes
 
     @property
     def short_name(self):
@@ -75,8 +72,8 @@ class FramesSource(object):
         frame['landmarks'] = self.detect_landmarks(frame)
         frame['eyes'] = self.segment_eyes(frame)
 
-        for eye_dict in frame['eyes']:
-            yield eye_dict['image']
+        eyes = [entry['image'] for entry in frame['eyes']]
+        return eyes
 
     def preprocess_entry(self, eye):
         """Preprocess segmented eye images for use as neural network input."""

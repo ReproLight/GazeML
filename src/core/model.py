@@ -92,10 +92,10 @@ class GazeModel(object):
 
     def inference(self):
         """Perform inference on test data and yield a batch of output."""
-        eye = self._data_source.preprocess_data()
-        eye = np.expand_dims(eye, -1 if self._data_format == 'NHWC' else 0)
-        self._tensorflow_session.run(self._preprocess_queue.enqueue([self.input_tensor]),
-                                     feed_dict={self.input_tensor: eye})
+        for eye in self._data_source.preprocess_data():
+            eye = np.expand_dims(eye, -1 if self._data_format == 'NHWC' else 0)
+            self._tensorflow_session.run(self._preprocess_queue.enqueue([self.input_tensor]),
+                                         feed_dict={self.input_tensor: eye})
         start_time = time.time()
         outputs = self._tensorflow_session.run(
             fetches=self.output_tensors,
